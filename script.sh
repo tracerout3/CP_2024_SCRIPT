@@ -53,7 +53,7 @@ delete_users() {
 
 # Function to manage services
 manage_services() {
-    local services=("ssh" "vsftp" "apache2" "mysql")
+    local services=("ssh" "vsftp" "apache2" "mysql" "nginx" )
 
     for service in "${services[@]}"; do
         if systemctl is-active --quiet "$service"; then
@@ -87,11 +87,33 @@ manage_services() {
     done
 }
 
+
+change_all_user_passwords() {
+    local new_password="CyB3rP@tr1oT2024"
+
+    # Change the password for each user except for the system users
+    for user in $(cut -f1 -d: /etc/passwd | grep -vE '^(root|nobody|sync|shutdown|halt)$'); do
+        echo "Changing password for user: $user"
+        echo "$user:$new_password" | chpasswd
+    done
+
+    echo "All user passwords have been changed to 'CyB3rP@tr1oT2024'."
+}
+
+
+
+
+
+
+
+
 # Function to show the menu
 show_menu() {
     echo "Please choose an option:"
     echo "1) Delete Users"
     echo "2) Manage Services"
+    echo "3) Change bad passwords ("all passwords will be CyB3rP@tr1oT2024")"
+    echo "4) Config Firewall"
     echo "q) Quit"
 }
 
@@ -107,6 +129,14 @@ while true; do
         2)
             manage_services
             ;;
+        3)
+            change_all_user_passwords
+            ;;
+
+        4)
+            firewall
+            ;;
+        
         q)
             echo "Exiting..."
             break
