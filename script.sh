@@ -128,15 +128,17 @@ fail2ban() {
     sed -i 's/^bantime[[:space:]]*=.*/bantime = 60m/' /etc/fail2ban/jail.conf
     sed -i 's/^findtime[[:space:]]*=.*/findtime = 5m/' /etc/fail2ban/jail.conf
     sed -i 's/^maxretry[[:space:]]*=.*/maxretry = 10/' /etc/fail2ban/jail.conf
-
+    echo "PermitRootLogin no" >> /etc/ssh/sshd_config
     # Restart the fail2ban service to apply changes
     systemctl start fail2ban
     systemctl enable fail2ban
-
+    systemctl restart sshd
     echo "Fail2Ban configuration updated for SSH. Changes applied:"
     echo "bantime = 60m"
     echo "findtime = 5m"
     echo "maxretry = 10"
+    
+    
 }
 
 
@@ -153,7 +155,7 @@ show_menu() {
     echo "2) Manage Services"
     echo "3) Change bad passwords ("all passwords will be CyB3rP@tr1oT2024")"
     echo "4) Config Firewall"
-    echo "5) Enable fail2ban"
+    echo "5) Secure SSH"
     echo "q) Quit"
 }
 
