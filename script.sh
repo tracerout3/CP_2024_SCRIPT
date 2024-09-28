@@ -7,7 +7,7 @@ if [ "$EUID" -ne 0 ]; then
 fi
 
 # Installs tools that are needed
-apt-get update && apt-get upgrade && apt-get install ufw chrootkit fail2ban iptables -y
+apt-get update && apt-get upgrade && apt-get install ufw chkrootkit fail2ban iptables -y
 
 # Function to delete unwanted users not in the readme
 delete_users() {
