@@ -119,6 +119,29 @@ firewall() {
 
 
 
+fail2ban() {
+      
+    #backs up original file  
+    cp /etc/fail2ban/jail.conf /etc/fail2ban/jail.conf.bak
+
+    # Modify the parameters in jail.conf
+    sed -i 's/^bantime[[:space:]]*=.*/bantime = 60m/' /etc/fail2ban/jail.conf
+    sed -i 's/^findtime[[:space:]]*=.*/findtime = 5m/' /etc/fail2ban/jail.conf
+    sed -i 's/^maxretry[[:space:]]*=.*/maxretry = 10/' /etc/fail2ban/jail.conf
+
+    # Restart the fail2ban service to apply changes
+    systemctl start fail2ban
+    systemctl enable fail2ban
+
+    echo "Fail2Ban configuration updated for SSH. Changes applied:"
+    echo "bantime = 60m"
+    echo "findtime = 5m"
+    echo "maxretry = 10"
+}
+
+
+
+
 
 
 
@@ -130,6 +153,7 @@ show_menu() {
     echo "2) Manage Services"
     echo "3) Change bad passwords ("all passwords will be CyB3rP@tr1oT2024")"
     echo "4) Config Firewall"
+    echo "5) Enable fail2ban"
     echo "q) Quit"
 }
 
@@ -151,6 +175,10 @@ while true; do
 
         4)
             firewall
+            ;;
+
+        5)
+            fail2ban
             ;;
         
         q)
