@@ -100,6 +100,22 @@ change_all_user_passwords() {
     echo "All user passwords have been changed to 'CyB3rP@tr1oT2024'."
 }
 
+firewall() {
+    echo
+    read -p "Configuring firewall (ufw)... [ENTER]"
+  
+    ufw enable
+    ufw allow ssh
+    ufw allow http
+    ufw deny 23   # Telnet protocol
+    ufw deny 2049  # NFS
+    ufw deny 515   # LPD
+    ufw deny 111   # RPC services
+    ufw default deny
+  
+    ufw status verbose
+}
+
 
 
 
@@ -149,18 +165,4 @@ while true; do
     echo ""
 done
 
-firewall() {
-    echo
-    read -p "Configuring firewall (ufw)... [ENTER]"
-  
-    ufw enable
-    ufw allow ssh
-    ufw allow http
-    ufw deny 23   # Telnet protocol
-    ufw deny 2049  # NFS
-    ufw deny 515   # LPD
-    ufw deny 111   # RPC services
-    ufw default deny
-  
-    ufw status verbose
-}
+
