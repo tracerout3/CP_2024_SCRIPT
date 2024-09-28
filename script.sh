@@ -12,7 +12,7 @@ apt-get install -y ufw chrootkit fail2ban iptables
 # Function to delete unwanted users not in the readme
 delete_users() {
     echo "Available users to delete (numbered):"
-    awk -F: '{ print NR ": " $1 }' /etc/passwd
+    awk -F: '{ print NR ": " $1 }' /etc/passwd | grep /bin/bash
 
     echo -n "Enter the numbers of the users you want to delete (space-separated): "
     read -a user_numbers
