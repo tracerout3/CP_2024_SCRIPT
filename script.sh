@@ -209,8 +209,7 @@ while true; do
             fail2ban
             ;;
         
-
-        6)
+	6)
             sudo
             ;;
         q)
