@@ -210,7 +210,7 @@ while true; do
             ;;
         
 
-        5)
+        6)
             sudo
             ;;
         q)
