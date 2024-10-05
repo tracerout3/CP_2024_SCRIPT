@@ -142,29 +142,23 @@ fail2ban() {
 }
 
 
-
 sudo() {
-	for x in `cat users`
-	do
-		read -p "Is $x considered an admin?[y/n]: " a
-		if [ $a = y ]
-		then
-			##Adds to the adm group
-			sudo usermod -a -G adm $x
-
-			##Adds to the sudo group
-			sudo usermod -a -G sudo $x
+	for x in $(cat users); do
+		if id "$x" &>/dev/null; then
+			read -p "Is $x considered an admin? [y/n]: " a
+			if [ "$a" = "y" ]; then
+				sudo usermod -a -G adm "$x"
+				sudo usermod -a -G sudo "$x"
+			else
+				sudo deluser "$x" adm
+				sudo deluser "$x" sudo
+			fi
 		else
-			##Removes from the adm group
-			sudo deluser $x adm
-
-			##Removes from the sudo group
-			sudo deluser $x sudo
+			echo "User $x does not exist."
 		fi
 	done
+}
 
-	
- }
 
 
 
