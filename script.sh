@@ -163,8 +163,8 @@ sudo() {
 		fi
 	done
 
-	pause
-}
+	
+ }
 
 
 
@@ -181,7 +181,7 @@ show_menu() {
     echo "3) Change bad passwords ("all passwords will be CyB3rP@tr1oT2024")"
     echo "4) Config Firewall"
     echo "5) Secure SSH"
-    echo "6) Check sudoers"
+    echo "6) Check sudoers file for unwanted people"
     echo "q) Quit"
 }
 
