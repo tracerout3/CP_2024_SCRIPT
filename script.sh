@@ -146,6 +146,7 @@ sudo() {
     # List users with /bin/bash shell
     echo "Users with /bin/bash shell:"
     users=()
+    
     while IFS=: read -r user _ _ _ _ _ shell; do
         if [[ "$shell" == "/bin/bash" ]]; then
             users+=("$user")
@@ -169,9 +170,17 @@ sudo() {
     read -p "Enter the group name: " group
 
     if [[ "$action" == "add" ]]; then
-        sudo usermod -aG "$group" "$username" && echo "$username added to $group."
+        if sudo usermod -aG "$group" "$username"; then
+            echo "$username added to $group."
+        else
+            echo "Failed to add $username to $group. Please check if the group exists."
+        fi
     elif [[ "$action" == "remove" ]]; then
-        sudo deluser "$username" "$group" && echo "$username removed from $group."
+        if sudo deluser "$username" "$group"; then
+            echo "$username removed from $group."
+        else
+            echo "Failed to remove $username from $group. Please check if the group exists."
+        fi
     else
         echo "Invalid action. Please use 'add' or 'remove'."
     fi
