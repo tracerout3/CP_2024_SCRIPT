@@ -148,7 +148,7 @@ sudo() {
     users=()
     
     while IFS=: read -r user _ _ _ _ _ shell; do
-        if [[ "$shell" == "/bin/bash" ]]; then
+        if [[ "$shell" == "/bin/bash" || "/bin/sh" || "/bin/zsh" ]]; then
             users+=("$user")
             echo "$user"
         fi
