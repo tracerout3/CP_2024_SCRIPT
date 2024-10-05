@@ -143,22 +143,39 @@ fail2ban() {
 
 
 sudo() {
-	for x in $(cat users); do
-		if id "$x" &>/dev/null; then
-			read -p "Is $x considered an admin? [y/n]: " a
-			if [ "$a" = "y" ]; then
-				sudo usermod -a -G adm "$x"
-				sudo usermod -a -G sudo "$x"
-			else
-				sudo deluser "$x" adm
-				sudo deluser "$x" sudo
-			fi
-		else
-			echo "User $x does not exist."
-		fi
-	done
-}
+    # List users with /bin/bash shell
+    echo "Users with /bin/bash shell:"
+    users=()
+    while IFS=: read -r user _ _ _ _ _ shell; do
+        if [[ "$shell" == "/bin/bash" ]]; then
+            users+=("$user")
+            echo "$user"
+        fi
+    done < /etc/passwd
 
+    if [ ${#users[@]} -eq 0 ]; then
+        echo "No users with /bin/bash shell found."
+        return
+    fi
+
+    # Prompt for user and group action
+    read -p "Enter the username to modify: " username
+    if [[ ! " ${users[@]} " =~ " $username " ]]; then
+        echo "User $username does not exist or does not have /bin/bash as their shell."
+        return
+    fi
+
+    read -p "Do you want to add or remove the user from a group? [add/remove]: " action
+    read -p "Enter the group name: " group
+
+    if [[ "$action" == "add" ]]; then
+        sudo usermod -aG "$group" "$username" && echo "$username added to $group."
+    elif [[ "$action" == "remove" ]]; then
+        sudo deluser "$username" "$group" && echo "$username removed from $group."
+    else
+        echo "Invalid action. Please use 'add' or 'remove'."
+    fi
+}
 
 
 
