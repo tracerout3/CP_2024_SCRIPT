@@ -142,27 +142,29 @@ fail2ban() {
 }
 
 
+
+
 sudo() {
-    # List users with /bin/bash shell
-    echo "Users with /bin/bash shell:"
+    # List users with /bin/bash, /bin/sh, or /bin/zsh shell
+    echo "Users with /bin/bash, /bin/sh, or /bin/zsh shell:"
     users=()
     
     while IFS=: read -r user _ _ _ _ _ shell; do
-        if [[ "$shell" == "/bin/bash" || "/bin/sh" || "/bin/zsh" ]]; then
+        if [[ "$shell" == "/bin/bash" || "$shell" == "/bin/sh" || "$shell" == "/bin/zsh" ]]; then
             users+=("$user")
             echo "$user"
         fi
     done < /etc/passwd
 
     if [ ${#users[@]} -eq 0 ]; then
-        echo "No users with /bin/bash shell found."
+        echo "No users with /bin/bash, /bin/sh, or /bin/zsh shell found."
         return
     fi
 
     # Prompt for user and group action
     read -p "Enter the username to modify: " username
     if [[ ! " ${users[@]} " =~ " $username " ]]; then
-        echo "User $username does not exist or does not have /bin/bash as their shell."
+        echo "User $username does not exist or does not have a specified shell."
         return
     fi
 
@@ -185,6 +187,7 @@ sudo() {
         echo "Invalid action. Please use 'add' or 'remove'."
     fi
 }
+
 
 
 
