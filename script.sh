@@ -145,14 +145,15 @@ fail2ban() {
 
 
 sudo() {
-    # List users with /bin/bash, /bin/sh, or /bin/zsh shell
-    echo "Users with /bin/bash, /bin/sh, or /bin/zsh shell:"
+    # List users with /bin/bash, /bin/sh, or /bin/zsh shell along with their groups
+    echo "Users with /bin/bash, /bin/sh, or /bin/zsh shell and their groups:"
     users=()
     
     while IFS=: read -r user _ _ _ _ _ shell; do
         if [[ "$shell" == "/bin/bash" || "$shell" == "/bin/sh" || "$shell" == "/bin/zsh" ]]; then
             users+=("$user")
-            echo "$user"
+            groups=$(groups "$user" | cut -d: -f2)
+            echo "$user: $groups"
         fi
     done < /etc/passwd
 
