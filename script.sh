@@ -7,7 +7,7 @@ if [ "$EUID" -ne 0 ]; then
 fi
 
 # Installs tools that are needed
-apt-get update && apt-get upgrade && apt-get install ufw chkrootkit fail2ban iptables -y
+apt-get update && apt-get upgrade && apt-get install ufw chkrootkit fail2ban iptables libpam-pwquality -y
 
 # Function to delete unwanted users not in the readme
 delete_users() {
@@ -193,6 +193,93 @@ sudo() {
 
 
 
+killhack() {
+    tools=(
+        metasploit-framework
+        nmap
+        wireshark
+        aircrack-ng
+        burpsuite
+        john
+        sqlmap
+        hydra
+        maltego
+        nikto
+        openvas
+        netcat
+        ettercap
+        reaver
+        set
+        dnsenum
+        dnsmap
+        hashcat
+        burp
+        sqlninja
+        mitmproxy
+        wpscan
+        theharvester
+        feroxbuster
+        gobuster
+        netdiscover
+        enum4linux
+        gather
+        mimikatz
+        msfpc
+        veil
+        wpscan
+        dmitry
+        fuzzbunch
+        dirb
+        sublist3r
+        osrframework
+        cutter
+        xspy
+    )
+
+    for tool in "${tools[@]}"; do
+        echo "Removing $tool..."
+        sudo apt-get remove --purge -y "$tool"
+    done
+
+    echo "Cleanup unnecessary packages..."
+    sudo apt-get autoremove -y
+}
+
+
+
+passwordgood() {
+    
+
+    # Backup the current PAM configuration
+    sudo cp /etc/pam.d/common-password /etc/pam.d/common-password.bak
+
+    # Update the PAM configuration for password complexity
+    echo "Updating PAM configuration for password policy..."
+    sudo bash -c 'cat <<EOL > /etc/pam.d/common-password
+# /etc/pam.d/common-password - password-related modules common to all services
+
+password    requisite     pam_pwquality.so retry=3
+password    [success=1 default=ignore]      pam_unix.so obscure sha512
+password    required      pam_deny.so
+EOL'
+
+    # Set password aging policy
+    echo "Setting password aging policy..."
+    sudo bash -c 'cat <<EOL >> /etc/login.defs
+# NIST compliant password aging settings
+PASS_MAX_DAYS   90
+PASS_MIN_DAYS   1
+PASS_MIN_LEN    12
+PASS_WARN_AGE   14
+EOL'
+
+    echo "password policy has been set according to cybersecurity bible."
+}
+
+
+
+
+
 
 
 
@@ -207,6 +294,7 @@ show_menu() {
     echo "4) Config Firewall"
     echo "5) Secure SSH"
     echo "6) Check sudoers file for unwanted people"
+    echo "7) Purgeith thy unholy programs from thy holiest machine"
     echo "q) Quit"
 }
 
@@ -237,6 +325,17 @@ while true; do
 	6)
             sudo
             ;;
+
+	7)
+ 	   killhack
+     	    ;;
+
+
+	8)
+ 	   passwordgood
+	   ;;
+   
+      	
         q)
             echo "Exiting..."
             break
