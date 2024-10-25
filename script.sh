@@ -9,6 +9,9 @@ fi
 # Installs tools that are needed
 apt-get update && apt-get upgrade && apt-get install ufw chkrootkit fail2ban iptables libpam-pwquality -y
 
+#disable guest login
+echo "allow-guest=false" >> /etc/lightdm/lightdm.conf
+
 # Function to delete unwanted users not in the readme
 delete_users() {
     echo "Available users to delete (numbered):"
@@ -280,6 +283,32 @@ EOL'
 
 
 
+check_vulnerabilities() {
+    echo "Starting vulnerability checks..."
+
+    # Check for chkrootkit
+    if command -v chkrootkit &> /dev/null; then
+        echo "Running chkrootkit..."
+        sudo chkrootkit
+    else
+        echo "chkrootkit is not installed. Please install it."
+    fi
+
+    # Check for Lynis
+    if command -v lynis &> /dev/null; then
+        echo "Running Lynis..."
+        sudo lynis audit system
+    else
+        echo "Lynis is not installed. Please install it."
+    fi
+
+    echo "Vulnerability checks complete."
+}
+
+
+
+
+
 
 
 
@@ -295,6 +324,8 @@ show_menu() {
     echo "5) Secure SSH"
     echo "6) Check sudoers file for unwanted people"
     echo "7) Purgeith thy unholy programs from thy holiest machine"
+    echo "8) make good password"
+    echo "9) use chrootkit to find bad things"
     echo "q) Quit"
 }
 
@@ -334,6 +365,9 @@ while true; do
 	8)
  	   passwordgood
 	   ;;
+    	9)
+     	   check_vulnerabilities
+	    ;;
    
       	
         q)
