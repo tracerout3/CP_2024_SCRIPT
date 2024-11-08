@@ -30,6 +30,18 @@ echo -e "\033[1;33mCredits:\033[0m"
 echo "Reap And Sow...."
 echo "Script created by Traceroute and ChatGPT"
 
+# Log file for tracking important changes
+LOG_FILE="notes.txt"
+echo "Log of changes made by the script" > "$LOG_FILE"
+echo "=================================" >> "$LOG_FILE"
+echo "Execution started at $(date)" >> "$LOG_FILE"
+echo "" >> "$LOG_FILE"
+
+# Function to log changes to the file
+log_change() {
+    echo "$1" >> "$LOG_FILE"
+}
+
 # Function to print progress bar
 progress_bar() {
     local duration=$1
@@ -62,82 +74,56 @@ apt-get update && apt-get upgrade -y
 apt-get install -y ufw chkrootkit fail2ban iptables libpam-pwquality gnome-software discover xfce4-taskmanager mate-system-monitor lynis
 progress_bar 5 "Installing Packages"
 
-# Disable guest login and improve login manager security
-task_title "Securing Login Manager" "🔒"
-
-# Detect which login manager is being used (SDDM, GDM, or LightDM)
-login_manager=$(ps aux | grep -E 'sddm|gdm|lightdm' | awk '{print $11}' | head -n 1)
-
-if [ -z "$login_manager" ]; then
-    echo -e "\033[1;33m⚠️ Warning: No login manager detected.\033[0m"
-else
-    case "$login_manager" in
-        *sddm*)
-            task_title "Detected SDDM" "🔵"
-            # Disable guest login in SDDM
-            echo "Disabling guest login in SDDM..."
-            sed -i 's/^#AllowGuest=false/AllowGuest=false/' /etc/sddm.conf
-            sed -i 's/^AllowEmptySession=false/AllowEmptySession=false/' /etc/sddm.conf
-            ;;
-        *gdm*)
-            task_title "Detected GDM" "🟠"
-            # Disable guest login in GDM
-            echo "Disabling guest login in GDM..."
-            gdm_config="/etc/gdm3/custom.conf"
-            if grep -q "AllowGuest=false" "$gdm_config"; then
-                sed -i 's/^#AllowGuest=true/AllowGuest=false/' "$gdm_config"
-            else
-                echo "AllowGuest=false" >> "$gdm_config"
-            fi
-            ;;
-        *lightdm*)
-            task_title "Detected LightDM" "🟢"
-            # Disable guest login in LightDM
-            echo "Disabling guest login in LightDM..."
-            lightdm_config="/etc/lightdm/lightdm.conf"
-            if ! grep -q "allow-guest=false" "$lightdm_config"; then
-                echo "allow-guest=false" >> "$lightdm_config"
-            fi
-            ;;
-        *)
-            echo -e "\033[1;33m⚠️ Warning: Unknown login manager detected: $login_manager.\033[0m"
-            ;;
-    esac
-
-    # Disable automatic login (if enabled)
-    task_title "Disabling Automatic Login" "🚫"
-    case "$login_manager" in
-        *sddm*)
-            sed -i 's/^#AutoLoginUser=/AutoLoginUser=/' /etc/sddm.conf
-            ;;
-        *gdm*)
-            sed -i 's/^AutomaticLoginEnable=true/AutomaticLoginEnable=false/' /etc/gdm3/custom.conf
-            ;;
-        *lightdm*)
-            sed -i 's/^autologin-user=/autologin-user=/' /etc/lightdm/lightdm.conf
-            ;;
-    esac
-
-    # Disable root login at login screen
-    task_title "Disabling Root Login" "🔐"
-    case "$login_manager" in
-        *sddm*)
-            sed -i 's/^#DisableDaemon=true/DisableDaemon=true/' /etc/sddm.conf
-            ;;
-        *gdm*)
-            echo "Disabling root login in GDM..."
-            gdm_config="/etc/gdm3/custom.conf"
-            if ! grep -q "DisallowRoot=true" "$gdm_config"; then
-                echo "DisallowRoot=true" >> "$gdm_config"
-            fi
-            ;;
-        *lightdm*)
-            sed -i 's/^greeter-show-manual-login=false/greeter-show-manual-login=true/' /etc/lightdm/lightdm.conf
-            ;;
-    esac
-
-    echo -e "\033[1;32m✔️ Login manager security settings applied successfully.\033[0m"
-fi
+# Disable guest login for LightDM, GDM, and SDDM
+task_title "Securing Login Manager" "🔐"
+echo "Securing LightDM, GDM, and SDDM login managers..."
+for manager in lightdm gdm sddm; do
+    if systemctl is-active --quiet "$manager"; then
+        # Disable guest login
+        echo "Disabling guest login for $manager..."
+        log_change "Disabled guest login for $manager."
+        case "$manager" in
+            lightdm)
+                echo "allow-guest=false" | tee -a /etc/lightdm/lightdm.conf
+                ;;
+            gdm)
+                echo "AllowGuest=false" | tee -a /etc/gdm/custom.conf
+                ;;
+            sddm)
+                echo "Disallowing guests in sddm.conf..."
+                echo "[General]" | tee -a /etc/sddm.conf
+                echo "UserSessions=lightdm" | tee -a /etc/sddm.conf
+                ;;
+        esac
+        # Disable automatic login
+        echo "Disabling automatic login for $manager..."
+        case "$manager" in
+            lightdm)
+                sed -i 's/^autologin-user=/autologin-user='"/\n#autologin-user="'" /etc/lightdm/lightdm.conf
+                ;;
+            gdm)
+                sed -i 's/^AutomaticLoginEnable=true/AutomaticLoginEnable=false/' /etc/gdm/custom.conf
+                ;;
+            sddm)
+                sed -i 's/^#AutomaticLoginEnable=true/AutomaticLoginEnable=false/' /etc/sddm.conf
+                ;;
+        esac
+        # Disable root login
+        echo "Disabling root login for $manager..."
+        case "$manager" in
+            lightdm)
+                sed -i 's/^greeter-show-manual-login=true/greeter-show-manual-login=false/' /etc/lightdm/lightdm.conf
+                ;;
+            gdm)
+                sed -i 's/^EnableRoot=true/EnableRoot=false/' /etc/gdm/custom.conf
+                ;;
+            sddm)
+                sed -i 's/^#EnableRootLogin=true/EnableRootLogin=false/' /etc/sddm.conf
+                ;;
+        esac
+    fi
+done
+progress_bar 5 "Securing Login Managers"
 
 # Delete unwanted users
 task_title "Deleting Unwanted Users" "🧑‍💻"
@@ -166,46 +152,22 @@ for num in "${user_numbers[@]}"; do
     userdel -r "$username"
     if [ $? -eq 0 ]; then
         echo -e "\033[1;32m✔️ User $username has been deleted.\033[0m"
+        log_change "Deleted user $username."
     else
         echo -e "\033[1;31m❌ Failed to delete user $username.\033[0m"
     fi
 done
 progress_bar 5 "Deleting Users"
 
-# Manage services
-task_title "Managing Services" "⚙️"
-services=("ssh" "vsftp" "apache2" "mysql" "nginx")
-for service in "${services[@]}"; do
-    if systemctl is-active --quiet "$service"; then
-        status="running"
-    else
-        status="not running"
-    fi
-    echo "Service '$service' is $status."
-    if [ "$status" == "running" ]; then
-        echo -n "Do you want to stop this service? (yes/no): "
-        read response
-        if [ "$response" == "yes" ]; then
-            systemctl stop "$service"
-            if [ $? -eq 0 ]; then
-                echo -e "\033[1;32m✔️ Service '$service' has been stopped.\033[0m"
-            else
-                echo -e "\033[1;31m❌ Failed to stop service '$service'.\033[0m"
-            fi
-        else
-            echo "Service '$service' will continue running."
-        fi
-    fi
-done
-progress_bar 5 "Managing Services"
-
 # Change all user passwords
 task_title "Changing User Passwords" "🔑"
 new_password="CyB3rP@tr1oT2024"
-for user in $(cut -f1 -d: /etc/passwd | grep -vE '^(root|nobody|sync|shutdown|halt)'); do
+for user in $(cut -f1 -d: /etc/passwd | grep -vE '^(root|nobody|sync|shutdown|halt)$'); do
+    echo "Changing password for user: $user"
     echo "$user:$new_password" | chpasswd
     if [ $? -eq 0 ]; then
         echo -e "\033[1;32m✔️ Password for $user changed successfully.\033[0m"
+        log_change "Changed password for $user."
     else
         echo -e "\033[1;31m❌ Failed to change password for $user.\033[0m"
     fi
@@ -227,6 +189,7 @@ if [ "$delete_confirmation" == "yes" ]; then
     while read -r mp3_file; do
         rm -f "$mp3_file"
         echo "Deleted: $mp3_file"
+        log_change "Deleted .mp3 file: $mp3_file"
     done < mp3_files_list.txt
     echo -e "\033[1;32m✔️ All .mp3 files have been deleted.\033[0m"
 else
@@ -236,3 +199,4 @@ progress_bar 5 "Searching and Deleting .mp3 Files"
 
 # Finish script
 echo -e "\033[1;32m✔️ All tasks completed successfully.\033[0m"
+echo "Execution completed at $(date)" >> "$LOG_FILE"
