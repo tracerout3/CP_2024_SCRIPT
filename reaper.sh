@@ -191,12 +191,9 @@ if [ "$delete_confirmation" == "yes" ]; then
         echo "Deleted: $mp3_file"
         log_change "Deleted .mp3 file: $mp3_file"
     done < mp3_files_list.txt
-    echo -e "\033[1;32m✔️ All .mp3 files have been deleted.\033[0m"
-else
-    echo "No files were deleted."
 fi
-progress_bar 5 "Searching and Deleting .mp3 Files"
+progress_bar 5 "Deleting .mp3 Files"
 
-# Finish script
-echo -e "\033[1;32m✔️ All tasks completed successfully.\033[0m"
+# Final success message
+echo -e "\033[1;32m🎉 All tasks completed successfully!\033[0m"
 echo "Execution completed at $(date)" >> "$LOG_FILE"
