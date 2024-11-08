@@ -1,385 +1,236 @@
 #!/bin/bash
 
+# Display ASCII Art at the beginning
+cat << "EOF"
+              ...                            
+             ;::::;                          
+           ;::::; :;                         
+         ;:::::'   :;                        
+        ;:::::;     ;.                       
+       ,:::::'       ;           OOO\        
+       ::::::;       ;          OOOOO\       
+       ;:::::;       ;         OOOOOOOO      
+      ,;::::::;     ;'         / OOOOOOO     
+    ;:::::::::`. ,,,;.        /  / DOOOOOO   
+  .';:::::::::::::::::;,     /  /     DOOOO  
+ ,::::::;::::::;;;;::::;,   /  /        DOOO 
+;`::::::`'::::::;;;::::: ,#/  /          DOOO 
+:`:::::::`;::::::;;::: ;::#  /            DOOO
+::`:::::::`;:::::::: ;::::# /              DOO
+`:`:::::::`;:::::: ;::::::#/               DOO
+ :::`:::::::`;; ;:::::::::##                OO
+ ::::`:::::::`;::::::::;:::#                OO
+ `:::::`::::::::::::;'`:;::#                O 
+  `:::::`::::::::;' /  / `:#                  
+   ::::::`:::::;'  /  /   `#   
+EOF
+
+# Display Credits
+echo -e "\033[1;33mCredits:\033[0m"
+echo "Reap And Sow...."
+echo "Script created by Traceroute and ChatGPT"
+
+
+# Function to print progress bar
+progress_bar() {
+    local duration=$1
+    local task=$2
+    local bar_length=50
+    echo -n "$task "
+    for i in $(seq 1 $bar_length); do
+        echo -n "█"
+        sleep $(($duration / $bar_length))
+    done
+    echo -e "\nDone!"
+}
+
+# Function to print task title and icon
+task_title() {
+    local title=$1
+    local icon=$2
+    echo -e "\n\033[1;32m$icon $title\033[0m"
+}
+
 # Check if running as root
 if [ "$EUID" -ne 0 ]; then
-    echo "Put 'sudo' in front of this."
-    exit
+    echo -e "\033[1;31m❌ Error: Please run as root! Use 'sudo'.\033[0m"
+    exit 1
 fi
 
-# Installs tools that are needed
-apt-get update && apt-get upgrade && apt-get install ufw chkrootkit fail2ban iptables libpam-pwquality -y
+# Update and install necessary tools
+task_title "Updating and Installing Tools" "🔧"
+apt-get update && apt-get upgrade -y
+apt-get install -y ufw chkrootkit fail2ban iptables libpam-pwquality gnome-software discover xfce4-taskmanager mate-system-monitor lynis
+progress_bar 5 "Installing Packages"
 
-#disable guest login
+# Disable guest login
+task_title "Disabling Guest Login" "🚪"
 echo "allow-guest=false" >> /etc/lightdm/lightdm.conf
+progress_bar 2 "Disabling Guest Login"
 
-# Function to delete unwanted users not in the readme
-delete_users() {
-    echo "Available users to delete (numbered):"
-    awk -F: '{ print NR ": " $1 }' /etc/passwd | grep /bin/bash
+# Detect the Desktop Environment (DE)
+task_title "Detecting Desktop Environment" "🌐"
+desktop_env=$(echo $XDG_CURRENT_DESKTOP | tr '[:upper:]' '[:lower:]')
 
-    echo -n "Enter the numbers of the users you want to delete (space-separated): "
-    read -a user_numbers
+case "$desktop_env" in
+    gnome)
+        task_title "Detected GNOME" "🟢"
+        ;;
+    kde)
+        task_title "Detected KDE" "🔵"
+        ;;
+    xfce)
+        task_title "Detected XFCE" "🟡"
+        ;;
+    mate)
+        task_title "Detected MATE" "🟠"
+        ;;
+    *)
+        echo -e "\033[1;33m⚠️ Warning: No known desktop environment detected.\033[0m"
+        echo "Skipping automatic update configuration."
+        exit 0
+        ;;
+esac
 
-    for num in "${user_numbers[@]}"; do
-        if ! [[ "$num" =~ ^[0-9]+$ ]]; then
-            echo "Invalid input '$num'. Please enter only numbers."
-            return 1
-        fi
-    done
+# Enable automatic updates
+echo "Enabling automatic updates for $desktop_env..."
+systemctl enable --now apt-daily-upgrade.timer
+systemctl enable --now apt-daily.timer
+progress_bar 5 "Enabling Automatic Updates"
 
-    for num in "${user_numbers[@]}"; do
-        username=$(awk -F: -v num="$num" 'NR == num { print $1 }' /etc/passwd)
+# Delete unwanted users
+task_title "Deleting Unwanted Users" "🧑‍💻"
+echo "Available users to delete (numbered):"
+awk -F: '{ print NR ": " $1 }' /etc/passwd | grep /bin/bash
+echo -n "Enter the numbers of the users you want to delete (space-separated): "
+read -a user_numbers
 
-        if [ -z "$username" ]; then
-            echo "Invalid number $num. No user found at that number."
-            continue
-        fi
+for num in "${user_numbers[@]}"; do
+    if ! [[ "$num" =~ ^[0-9]+$ ]]; then
+        echo "Invalid input '$num'. Please enter only numbers."
+        exit 1
+    fi
+    username=$(awk -F: -v num="$num" 'NR == num { print $1 }' /etc/passwd)
+    if [ -z "$username" ]; then
+        echo "Invalid number $num. No user found at that number."
+        continue
+    fi
+    echo "You have selected user: $username"
+    echo -n "Are you sure you want to delete this user? (yes/no): "
+    read confirmation
+    if [ "$confirmation" != "yes" ]; then
+        echo "User deletion aborted for $username."
+        continue
+    fi
+    userdel -r "$username"
+    if [ $? -eq 0 ]; then
+        echo -e "\033[1;32m✔️ User $username has been deleted.\033[0m"
+    else
+        echo -e "\033[1;31m❌ Failed to delete user $username.\033[0m"
+    fi
+done
+progress_bar 5 "Deleting Users"
 
-        echo "You have selected user: $username"
-        echo -n "Are you sure you want to delete this user? (yes/no): "
-        read confirmation
-
-        if [ "$confirmation" != "yes" ]; then
-            echo "User deletion aborted for $username."
-            continue
-        fi
-
-        userdel -r "$username"
-
-        if [ $? -eq 0 ]; then
-            echo "User $username has been deleted."
-        else
-            echo "Failed to delete user $username."
-        fi
-    done
-}
-
-# Function to manage services
-manage_services() {
-    local services=("ssh" "vsftp" "apache2" "mysql" "nginx" )
-
-    for service in "${services[@]}"; do
-        if systemctl is-active --quiet "$service"; then
-            status="running"
-        else
-            status="not running"
-        fi
-
-        echo "Service '$service' is $status."
-
-        if [ "$status" == "running" ]; then
-            echo -n "Do you want to stop this service? (yes/no): "
-            read response
-
-            if [ "$response" == "yes" ]; then
-                systemctl stop "$service"
-                
-                if [ $? -eq 0 ]; then
-                    echo "Service '$service' has been stopped."
-                else
-                    echo "Failed to stop service '$service'."
-                fi
+# Manage services
+task_title "Managing Services" "⚙️"
+services=("ssh" "vsftp" "apache2" "mysql" "nginx")
+for service in "${services[@]}"; do
+    if systemctl is-active --quiet "$service"; then
+        status="running"
+    else
+        status="not running"
+    fi
+    echo "Service '$service' is $status."
+    if [ "$status" == "running" ]; then
+        echo -n "Do you want to stop this service? (yes/no): "
+        read response
+        if [ "$response" == "yes" ]; then
+            systemctl stop "$service"
+            if [ $? -eq 0 ]; then
+                echo -e "\033[1;32m✔️ Service '$service' has been stopped.\033[0m"
             else
-                echo "Service '$service' will continue running."
+                echo -e "\033[1;31m❌ Failed to stop service '$service'.\033[0m"
             fi
         else
-            echo "Service '$service' is not running; no action needed."
+            echo "Service '$service' will continue running."
         fi
-
-        echo
-    done
-}
-
-
-change_all_user_passwords() {
-    local new_password="CyB3rP@tr1oT2024"
-
-    # Change the password for each user except for the system users
-    for user in $(cut -f1 -d: /etc/passwd | grep -vE '^(root|nobody|sync|shutdown|halt)$'); do
-        echo "Changing password for user: $user"
-        echo "$user:$new_password" | chpasswd
-    done
-
-    echo "All user passwords have been changed to 'CyB3rP@tr1oT2024'."
-}
-
-firewall() {
-    echo
-    read -p "Configuring firewall (ufw)... [ENTER]"
-  
-    ufw enable
-    ufw allow ssh
-    ufw allow http
-    ufw deny 23   # Telnet protocol
-    ufw deny 2049  # NFS
-    ufw deny 515   # LPD
-    ufw deny 111   # RPC services
-    ufw default deny
-  
-    ufw status verbose
-}
-
-
-
-
-fail2ban() {
-      
-    #backs up original file  
-    cp /etc/fail2ban/jail.conf /etc/fail2ban/jail.conf.bak
-
-    # Modify the parameters in jail.conf
-    sed -i 's/^bantime[[:space:]]*=.*/bantime = 60m/' /etc/fail2ban/jail.conf
-    sed -i 's/^findtime[[:space:]]*=.*/findtime = 5m/' /etc/fail2ban/jail.conf
-    sed -i 's/^maxretry[[:space:]]*=.*/maxretry = 10/' /etc/fail2ban/jail.conf
-    echo "PermitRootLogin no" >> /etc/ssh/sshd_config
-    # Restart the fail2ban service to apply changes
-    systemctl start fail2ban
-    systemctl enable fail2ban
-    systemctl restart sshd
-    echo "Fail2Ban configuration updated for SSH. Changes applied:"
-    echo "bantime = 60m"
-    echo "findtime = 5m"
-    echo "maxretry = 10"
-    
-    
-}
-
-
-
-
-
-sudo() {
-    # List users with /bin/bash, /bin/sh, or /bin/zsh shell along with their groups
-    echo "Users with /bin/bash, /bin/sh, or /bin/zsh shell and their groups:"
-    users=()
-    
-    while IFS=: read -r user _ _ _ _ _ shell; do
-        if [[ "$shell" == "/bin/bash" || "$shell" == "/bin/sh" || "$shell" == "/bin/zsh" ]]; then
-            users+=("$user")
-            groups=$(groups "$user" | cut -d: -f2 | xargs)  # Get groups and trim leading spaces
-            echo "$user | $groups"
-        fi
-    done < /etc/passwd
-
-    if [ ${#users[@]} -eq 0 ]; then
-        echo "No users with /bin/bash, /bin/sh, or /bin/zsh shell found."
-        return
     fi
-
-    # Prompt for user and group action
-    read -p "Enter the username to modify: " username
-    if [[ ! " ${users[@]} " =~ " $username " ]]; then
-        echo "User $username does not exist or does not have a specified shell."
-        return
-    fi
-
-    read -p "Do you want to add or remove the user from a group? [add/remove]: " action
-    read -p "Enter the group name: " group
-
-    if [[ "$action" == "add" ]]; then
-        if sudo usermod -aG "$group" "$username"; then
-            echo "$username added to $group."
-        else
-            echo "Failed to add $username to $group. Please check if the group exists."
-        fi
-    elif [[ "$action" == "remove" ]]; then
-        if sudo deluser "$username" "$group"; then
-            echo "$username removed from $group."
-        else
-            echo "Failed to remove $username from $group. Please check if the group exists."
-        fi
-    else
-        echo "Invalid action. Please use 'add' or 'remove'."
-    fi
-}
-
-
-
-
-killhack() {
-    tools=(
-        metasploit-framework
-        nmap
-        wireshark
-        aircrack-ng
-        burpsuite
-        john
-        sqlmap
-        hydra
-        maltego
-        nikto
-        openvas
-        netcat
-        ettercap
-        reaver
-        set
-        dnsenum
-        dnsmap
-        hashcat
-        burp
-        sqlninja
-        mitmproxy
-        wpscan
-        theharvester
-        feroxbuster
-        gobuster
-        netdiscover
-        enum4linux
-        gather
-        mimikatz
-        msfpc
-        veil
-        wpscan
-        dmitry
-        fuzzbunch
-        dirb
-        sublist3r
-        osrframework
-        cutter
-        xspy
-    )
-
-    for tool in "${tools[@]}"; do
-        echo "Removing $tool..."
-        sudo apt-get remove --purge -y "$tool"
-    done
-
-    echo "Cleanup unnecessary packages..."
-    sudo apt-get autoremove -y
-}
-
-
-
-passwordgood() {
-    
-
-    # Backup the current PAM configuration
-    sudo cp /etc/pam.d/common-password /etc/pam.d/common-password.bak
-
-    # Update the PAM configuration for password complexity
-    echo "Updating PAM configuration for password policy..."
-    sudo bash -c 'cat <<EOL > /etc/pam.d/common-password
-# /etc/pam.d/common-password - password-related modules common to all services
-
-password    requisite     pam_pwquality.so retry=3
-password    [success=1 default=ignore]      pam_unix.so obscure sha512
-password    required      pam_deny.so
-EOL'
-
-    # Set password aging policy
-    echo "Setting password aging policy..."
-    sudo bash -c 'cat <<EOL >> /etc/login.defs
-# NIST compliant password aging settings
-PASS_MAX_DAYS   90
-PASS_MIN_DAYS   1
-PASS_MIN_LEN    12
-PASS_WARN_AGE   14
-EOL'
-
-    echo "password policy has been set according to cybersecurity bible."
-}
-
-
-
-
-
-check_vulnerabilities() {
-    echo "Starting vulnerability checks..."
-
-    # Check for chkrootkit
-    if command -v chkrootkit &> /dev/null; then
-        echo "Running chkrootkit..."
-        sudo chkrootkit
-    else
-        echo "chkrootkit is not installed. Please install it."
-    fi
-
-    # Check for Lynis
-    if command -v lynis &> /dev/null; then
-        echo "Running Lynis..."
-        sudo lynis audit system
-    else
-        echo "Lynis is not installed. Please install it."
-    fi
-
-    echo "Vulnerability checks complete."
-}
-
-
-
-
-
-
-
-
-
-
-# Function to show the menu
-show_menu() {
-    echo "Please choose an option:"
-    echo "1) Delete Users"
-    echo "2) Manage Services"
-    echo "3) Change bad passwords ("all passwords will be CyB3rP@tr1oT2024")"
-    echo "4) Config Firewall"
-    echo "5) Secure SSH"
-    echo "6) Check sudoers file for unwanted people"
-    echo "7) Purgeith thy unholy programs from thy holiest machine"
-    echo "8) make good password"
-    echo "9) use chrootkit to find bad things"
-    echo "q) Quit"
-}
-
-# Main loop
-while true; do
-    show_menu
-    read -p "Enter your choice: " choice
-
-    case $choice in
-        1)
-            delete_users
-            ;;
-        2)
-            manage_services
-            ;;
-        3)
-            change_all_user_passwords
-            ;;
-
-        4)
-            firewall
-            ;;
-
-        5)
-            fail2ban
-            ;;
-        
-	6)
-            sudo
-            ;;
-
-	7)
- 	   killhack
-     	    ;;
-
-
-	8)
- 	   passwordgood
-	   ;;
-    	9)
-     	   check_vulnerabilities
-	    ;;
-   
-      	
-        q)
-            echo "Exiting..."
-            break
-            ;;
-        *)
-            echo "Invalid choice. Please try again."
-            ;;
-    esac
-
-    echo ""
 done
+progress_bar 5 "Managing Services"
 
+# Change all user passwords
+task_title "Changing User Passwords" "🔑"
+new_password="CyB3rP@tr1oT2024"
+for user in $(cut -f1 -d: /etc/passwd | grep -vE '^(root|nobody|sync|shutdown|halt)$'); do
+    echo "Changing password for user: $user"
+    echo "$user:$new_password" | chpasswd
+done
+progress_bar 10 "Changing User Passwords"
 
+# Configure firewall with UFW
+task_title "Configuring Firewall" "🛡️"
+ufw enable
+ufw allow ssh
+ufw allow http
+ufw deny 23   # Telnet protocol
+ufw deny 2049 # NFS
+ufw deny 515  # LPD
+ufw deny 111  # RPC services
+ufw default deny
+ufw status verbose
+progress_bar 5 "Configuring Firewall"
+
+# Configure Fail2Ban
+task_title "Configuring Fail2Ban" "🚨"
+cp /etc/fail2ban/jail.conf /etc/fail2ban/jail.conf.bak
+sed -i 's/^bantime[[:space:]]*=.*/bantime = 60m/' /etc/fail2ban/jail.conf
+sed -i 's/^findtime[[:space:]]*=.*/findtime = 5m/' /etc/fail2ban/jail.conf
+sed -i 's/^maxretry[[:space:]]*=.*/maxretry = 10/' /etc/fail2ban/jail.conf
+echo "PermitRootLogin no" >> /etc/ssh/sshd_config
+systemctl start fail2ban
+systemctl enable fail2ban
+systemctl restart sshd
+progress_bar 6 "Configuring Fail2Ban"
+
+# List users with shell access
+task_title "Listing Users with Shell Access" "🧑‍💻"
+echo "Users with /bin/bash, /bin/sh, or /bin/zsh shell and their groups:"
+while IFS=: read -r user _ _ _ _ _ shell; do
+    if [[ "$shell" == "/bin/bash" || "$shell" == "/bin/sh" || "$shell" == "/bin/zsh" ]]; then
+        groups=$(groups "$user" | cut -d: -f2 | xargs)
+        echo "$user | $groups"
+    fi
+done < /etc/passwd
+progress_bar 5 "Listing Users"
+
+# Remove hacking tools
+task_title "Removing Hacking Tools" "🧹"
+tools=(
+    metasploit-framework nmap wireshark aircrack-ng burpsuite john sqlmap hydra maltego nikto openvas netcat ettercap reaver set dnsenum dnsmap hashcat burp sqlninja mitmproxy wpscan theharvester feroxbuster gobuster netdiscover enum4linux
+)
+for tool in "${tools[@]}"; do
+    echo "Removing $tool..."
+    sudo apt-get remove --purge -y "$tool"
+done
+sudo apt-get autoremove -y
+progress_bar 10 "Removing Tools"
+
+# Search for vulnerabilities with Lynis
+task_title "Searching for Vulnerabilities with Lynis" "🔍"
+lynis audit system
+progress_bar 10 "Scanning for Vulnerabilities"
+
+# Set up Chroot environment for added security
+task_title "Setting up Chroot Environment" "🔒"
+mkdir -p /var/chroot/{bin,lib,lib64,etc}
+cp /bin/bash /var/chroot/bin/
+cp /bin/ls /var/chroot/bin/
+progress_bar 5 "Setting up Chroot"
+
+# Search and delete .mp3 files
+task_title "Searching and Deleting .mp3 Files" "🎵"
+find / -type f -iname "*.mp3" -exec rm -f {} \;
+progress_bar 5 "Deleting .mp3 Files"
+
+# Final success message
+echo -e "\033[1;32m🎉 All tasks completed successfully!\033[0m"
