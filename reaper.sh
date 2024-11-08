@@ -30,7 +30,6 @@ echo -e "\033[1;33mCredits:\033[0m"
 echo "Reap And Sow...."
 echo "Script created by Traceroute and ChatGPT"
 
-
 # Function to print progress bar
 progress_bar() {
     local duration=$1
@@ -63,40 +62,82 @@ apt-get update && apt-get upgrade -y
 apt-get install -y ufw chkrootkit fail2ban iptables libpam-pwquality gnome-software discover xfce4-taskmanager mate-system-monitor lynis
 progress_bar 5 "Installing Packages"
 
-# Disable guest login
-task_title "Disabling Guest Login" "🚪"
-echo "allow-guest=false" >> /etc/lightdm/lightdm.conf
-progress_bar 2 "Disabling Guest Login"
+# Disable guest login and improve login manager security
+task_title "Securing Login Manager" "🔒"
 
-# Detect the Desktop Environment (DE)
-task_title "Detecting Desktop Environment" "🌐"
-desktop_env=$(echo $XDG_CURRENT_DESKTOP | tr '[:upper:]' '[:lower:]')
+# Detect which login manager is being used (SDDM, GDM, or LightDM)
+login_manager=$(ps aux | grep -E 'sddm|gdm|lightdm' | awk '{print $11}' | head -n 1)
 
-case "$desktop_env" in
-    gnome)
-        task_title "Detected GNOME" "🟢"
-        ;;
-    kde)
-        task_title "Detected KDE" "🔵"
-        ;;
-    xfce)
-        task_title "Detected XFCE" "🟡"
-        ;;
-    mate)
-        task_title "Detected MATE" "🟠"
-        ;;
-    *)
-        echo -e "\033[1;33m⚠️ Warning: No known desktop environment detected.\033[0m"
-        echo "Skipping automatic update configuration."
-        exit 0
-        ;;
-esac
+if [ -z "$login_manager" ]; then
+    echo -e "\033[1;33m⚠️ Warning: No login manager detected.\033[0m"
+else
+    case "$login_manager" in
+        *sddm*)
+            task_title "Detected SDDM" "🔵"
+            # Disable guest login in SDDM
+            echo "Disabling guest login in SDDM..."
+            sed -i 's/^#AllowGuest=false/AllowGuest=false/' /etc/sddm.conf
+            sed -i 's/^AllowEmptySession=false/AllowEmptySession=false/' /etc/sddm.conf
+            ;;
+        *gdm*)
+            task_title "Detected GDM" "🟠"
+            # Disable guest login in GDM
+            echo "Disabling guest login in GDM..."
+            gdm_config="/etc/gdm3/custom.conf"
+            if grep -q "AllowGuest=false" "$gdm_config"; then
+                sed -i 's/^#AllowGuest=true/AllowGuest=false/' "$gdm_config"
+            else
+                echo "AllowGuest=false" >> "$gdm_config"
+            fi
+            ;;
+        *lightdm*)
+            task_title "Detected LightDM" "🟢"
+            # Disable guest login in LightDM
+            echo "Disabling guest login in LightDM..."
+            lightdm_config="/etc/lightdm/lightdm.conf"
+            if ! grep -q "allow-guest=false" "$lightdm_config"; then
+                echo "allow-guest=false" >> "$lightdm_config"
+            fi
+            ;;
+        *)
+            echo -e "\033[1;33m⚠️ Warning: Unknown login manager detected: $login_manager.\033[0m"
+            ;;
+    esac
 
-# Enable automatic updates
-echo "Enabling automatic updates for $desktop_env..."
-systemctl enable --now apt-daily-upgrade.timer
-systemctl enable --now apt-daily.timer
-progress_bar 5 "Enabling Automatic Updates"
+    # Disable automatic login (if enabled)
+    task_title "Disabling Automatic Login" "🚫"
+    case "$login_manager" in
+        *sddm*)
+            sed -i 's/^#AutoLoginUser=/AutoLoginUser=/' /etc/sddm.conf
+            ;;
+        *gdm*)
+            sed -i 's/^AutomaticLoginEnable=true/AutomaticLoginEnable=false/' /etc/gdm3/custom.conf
+            ;;
+        *lightdm*)
+            sed -i 's/^autologin-user=/autologin-user=/' /etc/lightdm/lightdm.conf
+            ;;
+    esac
+
+    # Disable root login at login screen
+    task_title "Disabling Root Login" "🔐"
+    case "$login_manager" in
+        *sddm*)
+            sed -i 's/^#DisableDaemon=true/DisableDaemon=true/' /etc/sddm.conf
+            ;;
+        *gdm*)
+            echo "Disabling root login in GDM..."
+            gdm_config="/etc/gdm3/custom.conf"
+            if ! grep -q "DisallowRoot=true" "$gdm_config"; then
+                echo "DisallowRoot=true" >> "$gdm_config"
+            fi
+            ;;
+        *lightdm*)
+            sed -i 's/^greeter-show-manual-login=false/greeter-show-manual-login=true/' /etc/lightdm/lightdm.conf
+            ;;
+    esac
+
+    echo -e "\033[1;32m✔️ Login manager security settings applied successfully.\033[0m"
+fi
 
 # Delete unwanted users
 task_title "Deleting Unwanted Users" "🧑‍💻"
@@ -161,76 +202,37 @@ progress_bar 5 "Managing Services"
 # Change all user passwords
 task_title "Changing User Passwords" "🔑"
 new_password="CyB3rP@tr1oT2024"
-for user in $(cut -f1 -d: /etc/passwd | grep -vE '^(root|nobody|sync|shutdown|halt)$'); do
-    echo "Changing password for user: $user"
+for user in $(cut -f1 -d: /etc/passwd | grep -vE '^(root|nobody|sync|shutdown|halt)'); do
     echo "$user:$new_password" | chpasswd
-done
-progress_bar 10 "Changing User Passwords"
-
-# Configure firewall with UFW
-task_title "Configuring Firewall" "🛡️"
-ufw enable
-ufw allow ssh
-ufw allow http
-ufw deny 23   # Telnet protocol
-ufw deny 2049 # NFS
-ufw deny 515  # LPD
-ufw deny 111  # RPC services
-ufw default deny
-ufw status verbose
-progress_bar 5 "Configuring Firewall"
-
-# Configure Fail2Ban
-task_title "Configuring Fail2Ban" "🚨"
-cp /etc/fail2ban/jail.conf /etc/fail2ban/jail.conf.bak
-sed -i 's/^bantime[[:space:]]*=.*/bantime = 60m/' /etc/fail2ban/jail.conf
-sed -i 's/^findtime[[:space:]]*=.*/findtime = 5m/' /etc/fail2ban/jail.conf
-sed -i 's/^maxretry[[:space:]]*=.*/maxretry = 10/' /etc/fail2ban/jail.conf
-echo "PermitRootLogin no" >> /etc/ssh/sshd_config
-systemctl start fail2ban
-systemctl enable fail2ban
-systemctl restart sshd
-progress_bar 6 "Configuring Fail2Ban"
-
-# List users with shell access
-task_title "Listing Users with Shell Access" "🧑‍💻"
-echo "Users with /bin/bash, /bin/sh, or /bin/zsh shell and their groups:"
-while IFS=: read -r user _ _ _ _ _ shell; do
-    if [[ "$shell" == "/bin/bash" || "$shell" == "/bin/sh" || "$shell" == "/bin/zsh" ]]; then
-        groups=$(groups "$user" | cut -d: -f2 | xargs)
-        echo "$user | $groups"
+    if [ $? -eq 0 ]; then
+        echo -e "\033[1;32m✔️ Password for $user changed successfully.\033[0m"
+    else
+        echo -e "\033[1;31m❌ Failed to change password for $user.\033[0m"
     fi
-done < /etc/passwd
-progress_bar 5 "Listing Users"
-
-# Remove hacking tools
-task_title "Removing Hacking Tools" "🧹"
-tools=(
-    metasploit-framework nmap wireshark aircrack-ng burpsuite john sqlmap hydra maltego nikto openvas netcat ettercap reaver set dnsenum dnsmap hashcat burp sqlninja mitmproxy wpscan theharvester feroxbuster gobuster netdiscover enum4linux
-)
-for tool in "${tools[@]}"; do
-    echo "Removing $tool..."
-    sudo apt-get remove --purge -y "$tool"
 done
-sudo apt-get autoremove -y
-progress_bar 10 "Removing Tools"
+progress_bar 5 "Changing User Passwords"
 
-# Search for vulnerabilities with Lynis
-task_title "Searching for Vulnerabilities with Lynis" "🔍"
-lynis audit system
-progress_bar 10 "Scanning for Vulnerabilities"
-
-# Set up Chroot environment for added security
-task_title "Setting up Chroot Environment" "🔒"
-mkdir -p /var/chroot/{bin,lib,lib64,etc}
-cp /bin/bash /var/chroot/bin/
-cp /bin/ls /var/chroot/bin/
-progress_bar 5 "Setting up Chroot"
-
-# Search and delete .mp3 files
+# MP3 File Search and Deletion
 task_title "Searching and Deleting .mp3 Files" "🎵"
-find / -type f -iname "*.mp3" -exec rm -f {} \;
-progress_bar 5 "Deleting .mp3 Files"
+echo -n "Enter the directory to search for .mp3 files (default is /home): "
+read search_dir
+search_dir=${search_dir:-/home}
 
-# Final success message
-echo -e "\033[1;32m🎉 All tasks completed successfully!\033[0m"
+echo "Searching for .mp3 files in $search_dir..."
+find "$search_dir" -type f -iname "*.mp3" | tee mp3_files_list.txt
+
+echo -n "Do you want to delete all .mp3 files listed above? (yes/no): "
+read delete_confirmation
+if [ "$delete_confirmation" == "yes" ]; then
+    while read -r mp3_file; do
+        rm -f "$mp3_file"
+        echo "Deleted: $mp3_file"
+    done < mp3_files_list.txt
+    echo -e "\033[1;32m✔️ All .mp3 files have been deleted.\033[0m"
+else
+    echo "No files were deleted."
+fi
+progress_bar 5 "Searching and Deleting .mp3 Files"
+
+# Finish script
+echo -e "\033[1;32m✔️ All tasks completed successfully.\033[0m"
