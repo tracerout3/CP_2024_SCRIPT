@@ -99,7 +99,7 @@ for manager in lightdm gdm sddm; do
         echo "Disabling automatic login for $manager..."
         case "$manager" in
             lightdm)
-                sed -i 's/^autologin-user=/autologin-user='"/\n#autologin-user="'" /etc/lightdm/lightdm.conf
+                sed -i 's/^autologin-user=/autologin-user=/' /etc/lightdm/lightdm.conf
                 ;;
             gdm)
                 sed -i 's/^AutomaticLoginEnable=true/AutomaticLoginEnable=false/' /etc/gdm/custom.conf
