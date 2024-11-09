@@ -298,7 +298,8 @@ task_title "Hardening SSH Configuration" "🔒"
 echo "Hardening SSH configuration..."
 
 # Disable root login and configure other settings
-sed -i 's/^#PermitRootLogin .*/PermitRootLogin no/' /etc/ssh/sshd_config
+sudo sed -i 's/^\(#\?\)PermitRootLogin .*/PermitRootLogin no/' /etc/ssh/sshd_config
+
 # sed -i 's/^#PasswordAuthentication .*/PasswordAuthentication no/' /etc/ssh/sshd_config
 # sed -i 's/^#AllowUsers .*/AllowUsers myuser/' /etc/ssh/sshd_config # Replace 'myuser' with your username(s)
 # sed -i 's/^#Port .*/Port 22/' /etc/ssh/sshd_config # You can change port here if you like
