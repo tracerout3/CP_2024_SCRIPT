@@ -151,16 +151,38 @@ progress_bar 5 "Managing Services"
 
 # Task title (for display purposes)
 task_title="Managing Users and Groups 👥"
+# Define color codes
+RED='\033[0;31m'
+YELLOW='\033[1;33m'
+GREEN='\033[0;32m'
+RESET='\033[0m'  # Reset to default color
+
 # Function to list users with /bin/bash, /bin/sh, or /bin/zsh shell along with their groups
 list_users() {
-    echo "Users with /bin/bash, /bin/sh, or /bin/zsh shell and their groups:"
+    echo -e "\nUsers with /bin/bash, /bin/sh, or /bin/zsh shell and their groups:\n"
     users=()
 
     while IFS=: read -r user _ _ _ _ _ shell; do
         if [[ "$shell" == "/bin/bash" || "$shell" == "/bin/sh" || "$shell" == "/bin/zsh" ]]; then
             users+=("$user")
             groups=$(groups "$user" | cut -d: -f2 | xargs)  # Get groups and trim leading spaces
-            echo "$user | $groups"
+
+            # Print each user with their groups
+            echo -e "[ * ] $user"
+            # Print each group with color coding
+            for group in $groups; do
+                if [[ "$group" == "sudo" ]]; then
+                    # Color sudo group in red
+                    echo -e "   ${RED}$group${RESET}"
+                elif [[ "$group" =~ [^a-zA-Z0-9_] ]]; then
+                    # Color unusual groups (non-alphanumeric) in yellow
+                    echo -e "   ${YELLOW}$group${RESET}"
+                else
+                    # Default color for normal groups
+                    echo -e "   ${GREEN}$group${RESET}"
+                fi
+            done
+            echo -e "\n"  # Add space between users for readability
         fi
     done < /etc/passwd
 
@@ -228,23 +250,49 @@ delete_user() {
     fi
 }
 
+# Function to add a new user
+add_user() {
+    read -p "Enter the new username to add: " new_user
+    read -p "Enter the shell for the new user (e.g., /bin/bash): " shell
+    read -p "Enter the group for the new user: " group
+
+    # Check if the user already exists
+    if id "$new_user" &>/dev/null; then
+        echo "User $new_user already exists."
+        return 1
+    fi
+
+    # Create the new user with the specified shell and group
+    sudo useradd -m -s "$shell" -G "$group" "$new_user"
+
+    if [ $? -eq 0 ]; then
+        echo "User $new_user has been added with shell $shell and group $group."
+    else
+        echo "Failed to add user $new_user. Please check if the group exists."
+    fi
+}
+
+# Main execution
+echo -e "\nWelcome to the User Management Script!"
+
 # List users and allow user to choose an action
 list_users
 
 # If users were found, prompt for further actions
 if [ $? -eq 0 ]; then
-    echo -n "Would you like to modify a user's group or delete a user? [modify/delete]: "
+    echo -n "Would you like to modify a user's group, delete a user, or add a new user? [modify/delete/add]: "
     read action
 
     if [ "$action" == "modify" ]; then
         modify_user_group
     elif [ "$action" == "delete" ]; then
         delete_user
+    elif [ "$action" == "add" ]; then
+        add_user
     else
-        echo "Invalid action. Please choose 'modify' or 'delete'."
+        echo "Invalid action. Please choose 'modify', 'delete', or 'add'."
     fi
 fi
-
 # Displaying progress bar (simplified)
 echo -e "\n[##########] 100% - Managing Users and Groups"
 
