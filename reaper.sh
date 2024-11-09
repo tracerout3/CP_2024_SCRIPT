@@ -165,7 +165,7 @@ while IFS=: read -r username _ _ _ _ groups; do
             ;;
         remove)
             read -p "Do you want to delete user '$username' (yes/no)? " delete_action
-            if [ "$delete_action" == "yes" ]; then
+            if [ "$delete_action" = "yes" ]; then
                 userdel -r "$username"
                 echo "User '$username' and its home directory have been deleted."
                 log_change "Deleted user '$username'."
@@ -254,7 +254,7 @@ task_title "Searching and Removing Netcat Backdoors" "🚨"
 echo "Searching for Netcat backdoors..."
 
 # Find any instances of netcat running or installed
-if netstat -an | grep -q ':4444', '1337'; then
+if netstat -an | grep -qE ':(4444|1337)'; then
     echo "Netcat backdoor detected. Removing..."
     pkill -f netcat
     apt-get remove --purge -y netcat
@@ -298,7 +298,7 @@ find "$search_dir" -type f -iname "*.mp3" | tee mp3_files_list.txt
 
 echo -n "Do you want to delete all .mp3 files listed above? (yes/no): "
 read delete_confirmation
-if [ "$delete_confirmation" == "yes" ]; then
+if [ "$delete_confirmation" = "yes" ]; then
     while read -r mp3_file; do
         rm -f "$mp3_file"
         echo "Deleted: $mp3_file"
