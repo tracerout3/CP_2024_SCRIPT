@@ -185,7 +185,7 @@ progress_bar 5 "Managing Users and Groups"
 
 # Configure secure password and lockout policies (NIST framework)
 task_title "Configuring Password Policy" "🔑"
-sed -i 's/^PASS_MIN_LEN.*/PASS_MIN_LEN   14/' /etc/login.defs
+sed -i 's/^PASS_MIN_LEN.*/PASS_MIN_DAYS   2/' /etc/login.defs
 sed -i 's/^PASS_MAX_DAYS.*/PASS_MAX_DAYS   90/' /etc/login.defs
 sed -i 's/^PASS_WARN_AGE.*/PASS_WARN_AGE   7/' /etc/login.defs
 echo "Password length set to 14, max days 90, and warning age 7 days." | tee -a "$LOG_FILE"
