@@ -280,7 +280,7 @@ continue_or_exit() {
         return 0  # Continue
     else
         echo "Exiting script. Goodbye!"
-        exit 0  # Exit
+        continue 0  # Exit
     fi
 }
 
