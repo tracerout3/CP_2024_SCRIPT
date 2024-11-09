@@ -278,9 +278,12 @@ continue_or_exit() {
     read answer
     if [[ "$answer" == "yes" ]]; then
         return 0  # Continue
-    else
+    elif [[ "$answer" == "no" ]]; then
         echo "Exiting script. Goodbye!"
-        continue 0  # Exit
+        exit 0  # Exit completely
+    else
+        echo "Invalid response. Please type 'yes' to continue or 'no' to exit."
+        continue_or_exit
     fi
 }
 
@@ -303,14 +306,14 @@ while true; do
         elif [ "$action" == "add" ]; then
             add_user
         elif [ "$action" == "exit" ]; then
-            echo "Exiting the script."
-            exit 0
+            echo "Skipping action and continuing..."
+            continue  # Continue without quitting
         else
             echo "Invalid action. Please choose 'modify', 'delete', 'add', or 'exit'."
         fi
     fi
 
-    # Ask if the user wants to continue or exit
+    # Ask if the user wants to continue or exit after performing the action
     continue_or_exit
 done
 # Displaying progress bar (simplified)
