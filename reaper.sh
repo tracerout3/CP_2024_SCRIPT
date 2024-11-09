@@ -71,7 +71,7 @@ fi
 # Update and install necessary tools
 task_title "Updating and Installing Tools" "🔧"
 apt-get update && apt-get upgrade -y
-apt-get install -y ufw chkrootkit fail2ban iptables libpam-pwquality gnome-software discover xfce4-taskmanager mate-system-monitor lynis
+apt-get install -y ufw chkrootkit fail2ban iptables libpam-pwquality gnome-software discover xfce4-taskmanager mate-system-monitor lynis nmap
 progress_bar 5 "Installing Packages"
 
 # Disable guest login for LightDM, GDM, and SDDM
@@ -125,43 +125,89 @@ for manager in lightdm gdm sddm; do
 done
 progress_bar 5 "Securing Login Managers"
 
-# Delete unwanted users
-task_title "Deleting Unwanted Users" "🧑‍💻"
-echo "Available users to delete (numbered):"
-awk -F: '{ print NR ": " $1 }' /etc/passwd | grep /bin/bash
-echo -n "Enter the numbers of the users you want to delete (space-separated): "
-read -a user_numbers
-
-for num in "${user_numbers[@]}"; do
-    if ! [[ "$num" =~ ^[0-9]+$ ]]; then
-        echo "Invalid input '$num'. Please enter only numbers."
-        exit 1
-    fi
-    username=$(awk -F: -v num="$num" 'NR == num { print $1 }' /etc/passwd)
-    if [ -z "$username" ]; then
-        echo "Invalid number $num. No user found at that number."
-        continue
-    fi
-    echo "You have selected user: $username"
-    echo -n "Are you sure you want to delete this user? (yes/no): "
-    read confirmation
-    if [ "$confirmation" != "yes" ]; then
-        echo "User deletion aborted for $username."
-        continue
-    fi
-    userdel -r "$username"
-    if [ $? -eq 0 ]; then
-        echo -e "\033[1;32m✔️ User $username has been deleted.\033[0m"
-        log_change "Deleted user $username."
-    else
-        echo -e "\033[1;31m❌ Failed to delete user $username.\033[0m"
+# Automatically detect and manage services (keep or delete)
+task_title "Managing Services" "⚙️"
+services=("ssh" "nginx" "ftp" "vsftpd" "apache2" "proftpd")
+for service in "${services[@]}"; do
+    if systemctl is-active --quiet "$service"; then
+        read -p "Service '$service' is running. Do you want to keep or delete it? (keep/delete): " action
+        case "$action" in
+            keep)
+                echo "Keeping $service running."
+                ;;
+            delete)
+                systemctl stop "$service"
+                systemctl disable "$service"
+                echo "$service has been stopped and disabled."
+                log_change "Stopped and disabled service: $service."
+                ;;
+            *)
+                echo "Invalid action for $service. Skipping."
+                ;;
+        esac
     fi
 done
-progress_bar 5 "Deleting Users"
+progress_bar 5 "Managing Services"
+
+# Search users in /etc/passwd and check group memberships
+task_title "Checking User Groups" "👥"
+while IFS=: read -r username _ _ _ _ groups; do
+    user_groups=$(groups "$username")
+    if [[ "$user_groups" == *"wheel"* || "$user_groups" == *"sudo"* ]]; then
+        echo "User '$username' is part of a privileged group ($user_groups)."
+        log_change "User '$username' has privileged group membership: $user_groups."
+    else
+        echo "User '$username' is a normal user with groups: $user_groups."
+        log_change "User '$username' is a normal user with groups: $user_groups."
+    fi
+done < /etc/passwd
+progress_bar 5 "Checking User Groups"
+
+# Configure secure password and lockout policies (NIST framework)
+task_title "Configuring Password Policy" "🔑"
+sed -i 's/^PASS_MIN_LEN.*/PASS_MIN_LEN   14/' /etc/login.defs
+sed -i 's/^PASS_MAX_DAYS.*/PASS_MAX_DAYS   90/' /etc/login.defs
+sed -i 's/^PASS_WARN_AGE.*/PASS_WARN_AGE   7/' /etc/login.defs
+echo "Password length set to 14, max days 90, and warning age 7 days." | tee -a "$LOG_FILE"
+
+# Set lockout policy using faillock
+authconfig --enablefaillock --faillockargs="deny=5 unlock_time=900" --update
+echo "Account lockout set to 5 failed attempts, 15 minutes lockout." | tee -a "$LOG_FILE"
+progress_bar 5 "Configuring Password Policy"
+
+# Secure UFW and Fail2Ban configurations
+task_title "Configuring UFW and Fail2Ban" "🔥"
+ufw default deny incoming
+ufw default allow outgoing
+ufw allow ssh
+ufw enable
+systemctl enable fail2ban
+systemctl start fail2ban
+echo "Firewall and Fail2Ban configurations completed." | tee -a "$LOG_FILE"
+progress_bar 5 "Securing Firewall and Fail2Ban"
+
+# Remove common hacking tools
+task_title "Removing Hacking Tools" "🛑"
+tools=("nmap" "ophcrack" "netcat" "netcat-bsd" "metasploit" "hydra" "john" "aircrack-ng" "wireshark")
+for tool in "${tools[@]}"; do
+    if dpkg -l | grep -q "$tool"; then
+        apt-get remove --purge -y "$tool"
+        echo "$tool has been removed."
+        log_change "Removed tool: $tool."
+    fi
+done
+progress_bar 5 "Removing Hacking Tools"
+
+# Run security audits (Lynis and chkrootkit)
+task_title "Running Security Audits" "🔍"
+lynis audit system
+chkrootkit
+echo "Lynis and chkrootkit completed their security audits." | tee -a "$LOG_FILE"
+progress_bar 5 "Running Security Audits"
 
 # Change all user passwords
 task_title "Changing User Passwords" "🔑"
-new_password="CyB3rP@tr1oT2024"
+new_password="Cy3erPatr1ot!@$88"
 for user in $(cut -f1 -d: /etc/passwd | grep -vE '^(root|nobody|sync|shutdown|halt)$'); do
     echo "Changing password for user: $user"
     echo "$user:$new_password" | chpasswd
