@@ -71,7 +71,7 @@ fi
 # Update and install necessary tools
 task_title "Updating and Installing Tools" "🔧"
 apt-get update && apt-get upgrade -y
-apt-get install -y ufw chkrootkit fail2ban iptables libpam-pwquality gnome-software discover xfce4-taskmanager mate-system-monitor lynis nmap
+apt-get install -y ufw chkrootkit fail2ban iptables libpam-pwquality lynis nmap
 progress_bar 5 "Installing Packages"
 
 # Disable guest login for LightDM, GDM, and SDDM
