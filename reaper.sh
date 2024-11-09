@@ -208,7 +208,7 @@ progress_bar 5 "Securing Firewall and Fail2Ban"
 
 # Remove common hacking tools
 task_title "Removing Hacking Tools" "🛑"
-tools=("nmap" "ophcrack" "netcat" "netcat-bsd" "metasploit" "hydra" "john" "aircrack-ng" "wireshark" "aisleriot")
+tools=("nmap" "ophcrack" "netcat" "netcat-bsd" "metasploit" "hydra" "john" "aircrack-ng" "wireshark" "aisleriot" "wireshark-qt" "wireshark-common" "tcpdump")
 for tool in "${tools[@]}"; do
     if dpkg -l | grep -q "$tool"; then
         apt-get remove --purge -y "$tool"
