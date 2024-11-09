@@ -203,10 +203,59 @@ sed -i 's/^PASS_MAX_DAYS.*/PASS_MAX_DAYS   90/' /etc/login.defs
 sed -i 's/^PASS_WARN_AGE.*/PASS_WARN_AGE   7/' /etc/login.defs
 echo "Password min days set to 2, max days 90, and warning age 7 days." | tee -a "$LOG_FILE"
 
-# Set lockout policy using faillock
-authconfig --enablefaillock --faillockargs="deny=5 unlock_time=900" --update
-echo "Account lockout set to 5 failed attempts, 15 minutes lockout." | tee -a "$LOG_FILE"
-progress_bar 5 "Configuring Password Policy"
+# Define the log file location for security configuration logs
+LOG_FILE="/var/log/security_config.log"
+
+# Define the parameters for the faillock module
+DENY_ATTEMPTS=5
+UNLOCK_TIME=900  # 15 minutes in seconds
+
+# Function to log changes
+log_change() {
+    echo "$(date): $1" >> "$LOG_FILE"
+}
+
+# Check if the script is being run as root
+if [ "$(id -u)" -ne 0 ]; then
+    echo "This script must be run as root."
+    exit 1
+fi
+
+# Determine the PAM configuration file location based on the distro
+if [ -f /etc/debian_version ]; then
+    PAM_FILE="/etc/pam.d/common-auth"  # Debian-based systems (Ubuntu, etc.)
+elif [ -f /etc/redhat-release ]; then
+    PAM_FILE="/etc/pam.d/system-auth"  # RHEL/CentOS-based systems (system-auth)
+else
+    echo "Unsupported distribution. Exiting."
+    exit 1
+fi
+
+# Backup the current PAM file before making any changes
+cp "$PAM_FILE" "$PAM_FILE.bak"
+echo "Backup of $PAM_FILE created at $PAM_FILE.bak"
+
+# Update PAM configuration to enable faillock
+echo "Configuring PAM faillock for account lockout..."
+
+# Add the required PAM lines for faillock if not already present
+if ! grep -q "pam_faillock.so" "$PAM_FILE"; then
+    echo "Adding faillock configuration to $PAM_FILE..."
+    echo "auth required pam_faillock.so preauth audit deny=$DENY_ATTEMPTS unlock_time=$UNLOCK_TIME" >> "$PAM_FILE"
+    echo "auth [default=die] pam_faillock.so authfail audit deny=$DENY_ATTEMPTS unlock_time=$UNLOCK_TIME" >> "$PAM_FILE"
+    echo "account required pam_faillock.so" >> "$PAM_FILE"
+    log_change "Configured PAM faillock: deny=$DENY_ATTEMPTS, unlock_time=$UNLOCK_TIME"
+else
+    echo "PAM faillock configuration already present in $PAM_FILE. Skipping..."
+fi
+
+# Displaying success message
+echo "PAM faillock has been configured with the following settings:"
+echo "  Deny after $DENY_ATTEMPTS failed attempts"
+echo "  Account will be unlocked after $UNLOCK_TIME seconds (15 minutes)"
+
+# Log the change
+log_change "Configured PAM faillock: deny=$DENY_ATTEMPTS, unlock_time=$UNLOCK_TIME"
 
 # Secure UFW and Fail2Ban configurations
 task_title "Configuring UFW and Fail2Ban" "🔥"
