@@ -272,27 +272,47 @@ add_user() {
     fi
 }
 
+# Function to continue or exit
+continue_or_exit() {
+    echo -n "Would you like to perform another action? [yes/no]: "
+    read answer
+    if [[ "$answer" == "yes" ]]; then
+        return 0  # Continue
+    else
+        echo "Exiting script. Goodbye!"
+        exit 0  # Exit
+    fi
+}
+
 # Main execution
 echo -e "\nWelcome to the User Management Script!"
 
-# List users and allow user to choose an action
-list_users
+while true; do
+    # List users and allow user to choose an action
+    list_users
 
-# If users were found, prompt for further actions
-if [ $? -eq 0 ]; then
-    echo -n "Would you like to modify a user's group, delete a user, or add a new user? [modify/delete/add]: "
-    read action
+    # If users were found, prompt for further actions
+    if [ $? -eq 0 ]; then
+        echo -n "Would you like to modify a user's group, delete a user, add a new user, or exit? [modify/delete/add/exit]: "
+        read action
 
-    if [ "$action" == "modify" ]; then
-        modify_user_group
-    elif [ "$action" == "delete" ]; then
-        delete_user
-    elif [ "$action" == "add" ]; then
-        add_user
-    else
-        echo "Invalid action. Please choose 'modify', 'delete', or 'add'."
+        if [ "$action" == "modify" ]; then
+            modify_user_group
+        elif [ "$action" == "delete" ]; then
+            delete_user
+        elif [ "$action" == "add" ]; then
+            add_user
+        elif [ "$action" == "exit" ]; then
+            echo "Exiting the script."
+            exit 0
+        else
+            echo "Invalid action. Please choose 'modify', 'delete', 'add', or 'exit'."
+        fi
     fi
-fi
+
+    # Ask if the user wants to continue or exit
+    continue_or_exit
+done
 # Displaying progress bar (simplified)
 echo -e "\n[##########] 100% - Managing Users and Groups"
 
