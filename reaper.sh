@@ -149,19 +149,39 @@ for service in "${services[@]}"; do
 done
 progress_bar 5 "Managing Services"
 
-# Search users in /etc/passwd and check group memberships
-task_title "Checking User Groups" "👥"
+# User and group management section
+task_title "Managing Users and Groups" "👥"
 while IFS=: read -r username _ _ _ _ groups; do
-    user_groups=$(groups "$username")
-    if [[ "$user_groups" == *"wheel"* || "$user_groups" == *"sudo"* ]]; then
-        echo "User '$username' is part of a privileged group ($user_groups)."
-        log_change "User '$username' has privileged group membership: $user_groups."
-    else
-        echo "User '$username' is a normal user with groups: $user_groups."
-        log_change "User '$username' is a normal user with groups: $user_groups."
-    fi
+    echo -e "\nFound user: $username with groups: $groups"
+    read -p "Do you want to edit the groups of '$username' (edit/remove/done)? " action
+    case "$action" in
+        edit)
+            # Display current groups
+            echo "Current groups for $username: $groups"
+            read -p "Enter new groups for $username (comma separated): " new_groups
+            usermod -G "$new_groups" "$username"
+            echo "Updated groups for $username to: $new_groups"
+            log_change "Updated groups for user '$username' to: $new_groups."
+            ;;
+        remove)
+            read -p "Do you want to delete user '$username' (yes/no)? " delete_action
+            if [ "$delete_action" == "yes" ]; then
+                userdel -r "$username"
+                echo "User '$username' and its home directory have been deleted."
+                log_change "Deleted user '$username'."
+            else
+                echo "Skipping deletion of user '$username'."
+            fi
+            ;;
+        done)
+            echo "Done with user '$username'."
+            ;;
+        *)
+            echo "Invalid action. Skipping user '$username'."
+            ;;
+    esac
 done < /etc/passwd
-progress_bar 5 "Checking User Groups"
+progress_bar 5 "Managing Users and Groups"
 
 # Configure secure password and lockout policies (NIST framework)
 task_title "Configuring Password Policy" "🔑"
