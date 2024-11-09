@@ -149,46 +149,59 @@ for service in "${services[@]}"; do
 done
 progress_bar 5 "Managing Services"
 
-# User and group management section
-task_title "Managing Users and Groups" "👥"
-while IFS=: read -r username _ _ _ _ groups; do
-    echo -e "\nFound user: $username with groups: $groups"
-    read -p "Do you want to edit the groups of '$username' (edit/remove/done)? " action
-    case "$action" in
-        edit)
-            # Display current groups
-            echo "Current groups for $username: $groups"
-            read -p "Enter new groups for $username (comma separated): " new_groups
-            usermod -G "$new_groups" "$username"
-            echo "Updated groups for $username to: $new_groups"
-            log_change "Updated groups for user '$username' to: $new_groups."
-            ;;
-        remove)
-            read -p "Do you want to delete user '$username' (yes/no)? " delete_action
-            if [ "$delete_action" = "yes" ]; then
-                userdel -r "$username"
-                echo "User '$username' and its home directory have been deleted."
-                log_change "Deleted user '$username'."
-            else
-                echo "Skipping deletion of user '$username'."
-            fi
-            ;;
-        done)
-            echo "Done with user '$username'."
-            ;;
-        *)
-            echo "Invalid action. Skipping user '$username'."
-            ;;
-    esac
+# Task title (for display purposes)
+task_title="Managing Users and Groups 👥"
+
+# List of valid shells
+valid_shells="/bin/bash|/bin/sh|/bin/zsh"
+
+# Loop through the users in /etc/passwd and filter by shell
+while IFS=: read -r username _ _ _ _ _ shell; do
+    # Check if the user has a valid shell
+    if [[ "$shell" =~ $valid_shells ]]; then
+        # Get groups of the user from /etc/group
+        groups=$(getent group | grep "\b$username\b" | cut -d: -f1 | paste -sd, -)
+        
+        echo -e "\nFound user: $username with groups: $groups"
+        read -p "Do you want to edit the groups of '$username' (edit/remove/done)? " action
+        case "$action" in
+            edit)
+                # Display current groups
+                echo "Current groups for $username: $groups"
+                read -p "Enter new groups for $username (comma separated): " new_groups
+                usermod -G "$new_groups" "$username"
+                echo "Updated groups for $username to: $new_groups"
+                echo "$(date): Updated groups for user '$username' to: $new_groups." >> /var/log/user_group_changes.log
+                ;;
+            remove)
+                read -p "Do you want to delete user '$username' (yes/no)? " delete_action
+                if [ "$delete_action" = "yes" ]; then
+                    userdel -r "$username"
+                    echo "User '$username' and its home directory have been deleted."
+                    echo "$(date): Deleted user '$username'." >> /var/log/user_group_changes.log
+                else
+                    echo "Skipping deletion of user '$username'."
+                fi
+                ;;
+            done)
+                echo "Done with user '$username'."
+                ;;
+            *)
+                echo "Invalid action. Skipping user '$username'."
+                ;;
+        esac
+    fi
 done < /etc/passwd
-progress_bar 5 "Managing Users and Groups"
+
+# Displaying progress bar (simplified)
+echo -e "\n[##########] 100% - Managing Users and Groups"
 
 # Configure secure password and lockout policies (NIST framework)
 task_title "Configuring Password Policy" "🔑"
 sed -i 's/^PASS_MIN_LEN.*/PASS_MIN_DAYS   2/' /etc/login.defs
 sed -i 's/^PASS_MAX_DAYS.*/PASS_MAX_DAYS   90/' /etc/login.defs
 sed -i 's/^PASS_WARN_AGE.*/PASS_WARN_AGE   7/' /etc/login.defs
-echo "Password length set to 14, max days 90, and warning age 7 days." | tee -a "$LOG_FILE"
+echo "Password min days set to 2, max days 90, and warning age 7 days." | tee -a "$LOG_FILE"
 
 # Set lockout policy using faillock
 authconfig --enablefaillock --faillockargs="deny=5 unlock_time=900" --update
