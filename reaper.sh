@@ -151,47 +151,99 @@ progress_bar 5 "Managing Services"
 
 # Task title (for display purposes)
 task_title="Managing Users and Groups 👥"
+# Function to list users with /bin/bash, /bin/sh, or /bin/zsh shell along with their groups
+list_users() {
+    echo "Users with /bin/bash, /bin/sh, or /bin/zsh shell and their groups:"
+    users=()
 
-# List of valid shells
-valid_shells="/bin/bash|/bin/sh|/bin/zsh"
+    while IFS=: read -r user _ _ _ _ _ shell; do
+        if [[ "$shell" == "/bin/bash" || "$shell" == "/bin/sh" || "$shell" == "/bin/zsh" ]]; then
+            users+=("$user")
+            groups=$(groups "$user" | cut -d: -f2 | xargs)  # Get groups and trim leading spaces
+            echo "$user | $groups"
+        fi
+    done < /etc/passwd
 
-# Loop through the users in /etc/passwd and filter by shell
-while IFS=: read -r username _ _ _ _ _ shell; do
-    # Check if the user has a valid shell
-    if [[ "$shell" =~ $valid_shells ]]; then
-        # Get groups of the user from /etc/group
-        groups=$(getent group | grep "\b$username\b" | cut -d: -f1 | paste -sd, -)
-        
-        echo -e "\nFound user: $username with groups: $groups"
-        read -p "Do you want to edit the groups of '$username' (edit/remove/done)? " action
-        case "$action" in
-            edit)
-                # Display current groups
-                echo "Current groups for $username: $groups"
-                read -p "Enter new groups for $username (comma separated): " new_groups
-                usermod -G "$new_groups" "$username"
-                echo "Updated groups for $username to: $new_groups"
-                echo "$(date): Updated groups for user '$username' to: $new_groups." >> /var/log/user_group_changes.log
-                ;;
-            remove)
-                read -p "Do you want to delete user '$username' (yes/no)? " delete_action
-                if [ "$delete_action" = "yes" ]; then
-                    userdel -r "$username"
-                    echo "User '$username' and its home directory have been deleted."
-                    echo "$(date): Deleted user '$username'." >> /var/log/user_group_changes.log
-                else
-                    echo "Skipping deletion of user '$username'."
-                fi
-                ;;
-            done)
-                echo "Done with user '$username'."
-                ;;
-            *)
-                echo "Invalid action. Skipping user '$username'."
-                ;;
-        esac
+    if [ ${#users[@]} -eq 0 ]; then
+        echo "No users with /bin/bash, /bin/sh, or /bin/zsh shell found."
+        return 1
     fi
-done < /etc/passwd
+}
+
+# Function to modify a user's group membership (add/remove)
+modify_user_group() {
+    read -p "Enter the username to modify: " username
+
+    # Check if the user exists in the list of users
+    if [[ ! " ${users[@]} " =~ " $username " ]]; then
+        echo "User $username does not exist or does not have a specified shell."
+        return 1
+    fi
+
+    read -p "Do you want to add or remove the user from a group? [add/remove]: " action
+    read -p "Enter the group name: " group
+
+    if [[ "$action" == "add" ]]; then
+        if sudo usermod -aG "$group" "$username"; then
+            echo "$username added to $group."
+        else
+            echo "Failed to add $username to $group. Please check if the group exists."
+        fi
+    elif [[ "$action" == "remove" ]]; then
+        if sudo deluser "$username" "$group"; then
+            echo "$username removed from $group."
+        else
+            echo "Failed to remove $username from $group. Please check if the group exists."
+        fi
+    else
+        echo "Invalid action. Please use 'add' or 'remove'."
+    fi
+}
+
+# Function to delete users
+delete_user() {
+    read -p "Enter the username to delete: " username
+
+    # Check if the user exists in the list of users
+    if [[ ! " ${users[@]} " =~ " $username " ]]; then
+        echo "User $username does not exist or does not have a specified shell."
+        return 1
+    fi
+
+    echo "You have selected user: $username"
+    echo -n "Are you sure you want to delete this user? (yes/no): "
+    read confirmation
+
+    if [ "$confirmation" != "yes" ]; then
+        echo "User deletion aborted for $username."
+        return
+    fi
+
+    sudo userdel -r "$username"
+
+    if [ $? -eq 0 ]; then
+        echo "User $username has been deleted."
+    else
+        echo "Failed to delete user $username."
+    fi
+}
+
+# List users and allow user to choose an action
+list_users
+
+# If users were found, prompt for further actions
+if [ $? -eq 0 ]; then
+    echo -n "Would you like to modify a user's group or delete a user? [modify/delete]: "
+    read action
+
+    if [ "$action" == "modify" ]; then
+        modify_user_group
+    elif [ "$action" == "delete" ]; then
+        delete_user
+    else
+        echo "Invalid action. Please choose 'modify' or 'delete'."
+    fi
+fi
 
 # Displaying progress bar (simplified)
 echo -e "\n[##########] 100% - Managing Users and Groups"
