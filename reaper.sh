@@ -279,11 +279,11 @@ continue_or_exit() {
     if [[ "$answer" == "yes" ]]; then
         return 0  # Continue
     elif [[ "$answer" == "no" ]]; then
-        echo "Exiting script. Goodbye!"
-        exit 0  # Exit completely
+        echo "Moving on (its a simply thing)"
+        true 0  # Exit completely
     else
         echo "Invalid response. Please type 'yes' to continue or 'no' to exit."
-        continue_or_exit
+        
     fi
 }
 
