@@ -307,7 +307,7 @@ while true; do
             add_user
         elif [ "$action" == "exit" ]; then
             echo "Skipping action and continuing..."
-            continue  # Continue without quitting
+            break  # Continue without quitting
         else
             echo "Invalid action. Please choose 'modify', 'delete', 'add', or 'exit'."
         fi
