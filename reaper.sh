@@ -464,7 +464,7 @@ progress_bar 5 "Running Security Audits"
 
 # Change all user passwords
 task_title "Changing User Passwords" "🔑"
-new_password="Cy3erPatr1ot!@88" | tee -a "$LOG_FILE"
+new_password="Cy3erPatr1ot!@88" 
 cut -f1 -d: /etc/passwd | grep -vE '\(root|nobody|sync|shutdown|halt\)' | while IFS= read -r user ; do
     echo "Changing password for user: $user"
     echo "$user:$new_password" | chpasswd
