@@ -68,6 +68,10 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
+#locks root and secures /etc/shadow
+passwd -l root 
+chmod 640 /etc/shadow
+
 # Update and install necessary tools
 task_title "Updating and Installing Tools" "🔧"
 apt-get update && apt-get upgrade -y
