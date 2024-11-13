@@ -75,7 +75,7 @@ chmod 640 /etc/shadow
 # Update and install necessary tools
 task_title "Updating and Installing Tools" "🔧"
 apt-get update && apt-get upgrade -y
-apt-get install -y ufw chkrootkit fail2ban iptables libpam-pwquality lynis vim
+apt-get install -y ufw chkrootkit fail2ban iptables libpam-pwquality lynis vim net-tools
 progress_bar 5 "Installing Packages"
 
 # Disable guest login for LightDM, GDM, and SDDM
@@ -449,7 +449,7 @@ if netstat -an | grep -qE ':(4444|1337)'; then
     pkill -f netcat
     apt-get remove --purge -y netcat
     echo "Netcat removed."
-    log_change "Netcat backdoor detected and removed."
+    log_change "Netcat backdoor detected and (probobly) removed (double check) (look in /etc/crontab)."
 else
     echo "No Netcat backdoor found."
 fi
@@ -464,7 +464,7 @@ progress_bar 5 "Running Security Audits"
 
 # Change all user passwords
 task_title "Changing User Passwords" "🔑"
-new_password="Cy3erPatr1ot!@88"
+new_password="Cy3erPatr1ot!@88" | tee -a "$LOG_FILE"
 cut -f1 -d: /etc/passwd | grep -vE '\(root|nobody|sync|shutdown|halt\)' | while IFS= read -r user ; do
     echo "Changing password for user: $user"
     echo "$user:$new_password" | chpasswd
@@ -476,6 +476,13 @@ cut -f1 -d: /etc/passwd | grep -vE '\(root|nobody|sync|shutdown|halt\)' | while 
     fi
 done
 progress_bar 5 "Changing User Passwords"
+
+
+#disables ipv4 forwarding && enables ipv4 syn packet coockies
+
+echo "net.ipv4.ip_forward=0" > /etc/sysctl.conf | tee -a "$LOG_FILE"
+echo "net.impv.tcp_syncookies=1" > /etc/sysctl.conf | tee -a "$LOG_FILE"
+
 
 # MP3 File Search and Deletion
 task_title "Searching and Deleting .mp3 Files" "🎵"
