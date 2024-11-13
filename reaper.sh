@@ -480,8 +480,8 @@ progress_bar 5 "Changing User Passwords"
 
 #disables ipv4 forwarding && enables ipv4 syn packet coockies
 
-echo "net.ipv4.ip_forward=0" > /etc/sysctl.conf | tee -a "$LOG_FILE"
-echo "net.impv.tcp_syncookies=1" > /etc/sysctl.conf | tee -a "$LOG_FILE"
+echo "net.ipv4.ip_forward=0" >> /etc/sysctl.conf
+echo "net.ipv4.tcp_syncookies=1" >> /etc/sysctl.conf
 
 
 # MP3 File Search and Deletion
