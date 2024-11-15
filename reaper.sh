@@ -69,7 +69,6 @@ if [ "$EUID" -ne 0 ]; then
 fi
 
 #locks root and secures /etc/shadow
-passwd -l root 
 chmod 640 /etc/shadow
 
 # Update and install necessary tools
