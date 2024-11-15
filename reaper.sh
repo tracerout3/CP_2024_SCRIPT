@@ -325,7 +325,7 @@ echo -e "\n[##########] 100% - Managing Users and Groups"
 
 # Configure secure password and lockout policies (NIST framework)
 task_title "Configuring Password Policy" "🔑"
-sed -i 's/^PASS_MIN_LEN.*/PASS_MIN_DAYS   2/' /etc/login.defs
+sed -i 's/^PASS_MIN_DAYS.*/PASS_MIN_DAYS   2/' /etc/login.defs
 sed -i 's/^PASS_MAX_DAYS.*/PASS_MAX_DAYS   90/' /etc/login.defs
 sed -i 's/^PASS_WARN_AGE.*/PASS_WARN_AGE   7/' /etc/login.defs
 echo "Password min days set to 2, max days 90, and warning age 7 days." | tee -a "$LOG_FILE"
@@ -480,8 +480,8 @@ progress_bar 5 "Changing User Passwords"
 
 #disables ipv4 forwarding && enables ipv4 syn packet coockies
 
-echo "net.ipv4.ip_forward=0" | sudo tee /etc/sysctl.d/99-disable-ip-forwarding.conf
-echo "net.ipv4.tcp_syncookies=1" | sudo tee /etc/sysctl.d/99-enable-tcp-syncookies.conf
+echo "net.ipv4.ip_forward=0" | sudo tee /etc/sysctl.conf
+echo "net.ipv4.tcp_syncookies=1" | sudo tee /etc/sysctl.conf
 sudo sysctl --system
 
 
