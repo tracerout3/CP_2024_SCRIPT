@@ -128,15 +128,215 @@ for manager in lightdm gdm sddm; do
 done
 progress_bar 5 "Securing Login Managers"
 
+
+# Disable TCP connections to the X server
+
+echo "Disabling TCP connections to the X server..."
+
+# Step 1: Modify the X server configuration to disable TCP connections
+# Check if the configuration file exists and modify accordingly
+if [ -f /etc/X11/xorg.conf ]; then
+    sudo sed -i '/^Section "ServerFlags"/a \ \ Option "DisableTCP" "true"' /etc/X11/xorg.conf
+else
+    echo 'No /etc/X11/xorg.conf found. Proceeding with xinit configuration.'
+fi
+
+# Step 2: Modify xinit configuration (for most distributions)
+if [ -f /etc/X11/xinit/xserverrc ]; then
+    sudo sed -i 's/^.*X .*$/exec /usr/bin/X -nolisten tcp $DISPLAY/' /etc/X11/xinit/xserverrc
+else
+    echo "No xinit configuration found. Skipping this step."
+fi
+
+# Step 3: Restart the X server for the changes to take effect
+echo "Restarting the X server..."
+sudo systemctl restart display-manager
+
+echo "TCP connections to the X server have been disabled."
+
+
+# Disable ICMP Echo Requests (Ping)
+echo "Disabling ICMP Echo Requests (Ping)..."
+
+# Step 1: Add rule to iptables to block ICMP echo requests
+sudo iptables -A INPUT -p icmp --icmp-type echo-request -j REJECT
+
+# Step 2: Make this change persistent across reboots
+# Save the iptables rules
+sudo iptables-save > /etc/iptables/rules.v4
+
+echo "ICMP Echo Requests have been disabled."
+
+
+
+# Prevent Null Passwords from Authenticating
+echo "Ensuring null passwords cannot authenticate..."
+
+# Step 1: Modify /etc/pam.d/common-auth to prevent null password logins
+if grep -q "nullok" /etc/pam.d/common-auth; then
+    sudo sed -i 's/nullok//g' /etc/pam.d/common-auth
+    echo "Null password authentication has been disabled in common-auth."
+else
+    echo "Null passwords are already disabled in common-auth."
+fi
+
+# Step 2: Ensure the system password database does not allow null passwords by checking /etc/shadow
+echo "Checking for accounts with null passwords..."
+
+# List accounts with null passwords in /etc/shadow
+null_password_accounts=$(sudo awk -F: '($2==""){print $1}' /etc/shadow)
+
+# If there are any, disable the accounts
+if [ -n "$null_password_accounts" ]; then
+    echo "The following accounts have null passwords: $null_password_accounts"
+    for account in $null_password_accounts; do
+        sudo usermod -L "$account"  # Lock the account
+        echo "Account $account has been locked due to null password."
+    done
+else
+    echo "No accounts with null passwords found."
+fi
+
+echo "Null password authentication is now disabled."
+
+
+
+
+
+
+
 # Automatically detect and manage services (keep or delete)
+# Task Title for Service Management
 task_title "Managing Services" "⚙️"
-services=("ssh" "nginx" "ftp" "vsftpd" "apache2" "proftpd")
+
+# Services to manage
+services=("ssh" "nginx" "ftp" "vsftpd" "apache2" "proftpd" "samba")
+
 for service in "${services[@]}"; do
     if systemctl is-active --quiet "$service"; then
         read -p "Service '$service' is running. Do you want to keep or delete it? (keep/delete): " action
         case "$action" in
             keep)
                 echo "Keeping $service running."
+                
+                # Basic hardening for each service
+                case "$service" in
+                    ssh)
+                        # SSH hardening: Disable root login
+                        echo "Hardening SSH..."
+                        sudo sed -i 's/^\(#\?\)PermitRootLogin .*/PermitRootLogin no/' /etc/ssh/sshd_config
+                        sudo systemctl restart sshd
+                        echo "SSH has been hardened."
+                        ;;
+                    apache2)
+                        # Apache hardening (already included in previous logic)
+                        echo "Starting Apache hardening process..."
+
+                        # Ensure Apache is up to date
+                        sudo apt update && sudo apt upgrade -y
+
+                        # Disable unnecessary Apache modules
+                        sudo a2dismod status
+                        sudo a2dismod autoindex
+                        sudo a2dismod userdir
+                        sudo a2dismod cgi
+
+                        # Secure Apache configurations in /etc/apache2/apache2.conf
+                        sudo sed -i 's/^#ServerSignature.*/ServerSignature Off/' /etc/apache2/apache2.conf
+                        sudo sed -i 's/^#ServerTokens.*/ServerTokens Prod/' /etc/apache2/apache2.conf
+                        sudo echo "<Directory /var/www/>
+                            Options -Indexes
+                            AllowOverride None
+                            Order allow,deny
+                            Deny from all
+                            <Files ~ \"^\.ht\">
+                              Require all denied
+                            </Files>
+                        </Directory>" >> /etc/apache2/apache2.conf
+
+                        # Enable SSL and configure strong encryption
+                        sudo a2enmod ssl
+                        sudo systemctl restart apache2
+                        sudo bash -c 'cat <<EOF > /etc/apache2/sites-available/default-ssl.conf
+                        <VirtualHost _default_:443>
+                            ServerAdmin webmaster@localhost
+                            DocumentRoot /var/www/html
+                            SSLEngine on
+                            SSLCertificateFile /etc/ssl/certs/ssl-cert-snakeoil.pem
+                            SSLCertificateKeyFile /etc/ssl/private/ssl-cert-snakeoil.key
+                            SSLProtocol All -SSLv2 -SSLv3
+                            SSLCipherSuite HIGH:!aNULL:!MD5
+                            SSLOptions +StrictRequire
+                            <Directory /var/www/>
+                                Options -Indexes
+                                AllowOverride None
+                                Require all granted
+                            </Directory>
+                        </VirtualHost>
+                        EOF'
+
+                        # Secure the Apache User & Permissions
+                        sudo usermod -s /usr/sbin/nologin www-data
+                        sudo chown -R root:root /etc/apache2/
+                        sudo chmod -R 700 /etc/apache2/
+
+                        # Limit Request Size (DDoS Protection)
+                        sudo sed -i 's/#LimitRequestBody.*/LimitRequestBody 10485760/' /etc/apache2/apache2.conf
+
+                        # Disable directory listing
+                        sudo sed -i 's/Options Indexes FollowSymLinks/Options FollowSymLinks/' /etc/apache2/apache2.conf
+
+                        # Enable ModSecurity (Web Application Firewall)
+                        sudo apt install libapache2-mod-security2 -y
+                        sudo a2enmod security2
+                        sudo systemctl restart apache2
+
+                        # Configure Apache to only listen on localhost
+                        sudo sed -i 's/^Listen 80$/Listen 127.0.0.1:80/' /etc/apache2/ports.conf
+
+                        # Restart Apache to apply changes
+                        sudo systemctl restart apache2
+
+                        echo "Apache hardening complete!"
+                        ;;
+                    nginx)
+                        # Nginx Hardening
+                        echo "Hardening Nginx..."
+                        sudo sed -i 's/^#server_tokens on;/server_tokens off;/' /etc/nginx/nginx.conf
+                        sudo sed -i 's/^#client_max_body_size .*/client_max_body_size 10M;/' /etc/nginx/nginx.conf
+                        sudo systemctl restart nginx
+                        echo "Nginx has been hardened."
+                        ;;
+                    vsftpd)
+                        # vsftpd Hardening
+                        echo "Hardening vsftpd..."
+                        sudo sed -i 's/^#listen=NO/listen=YES/' /etc/vsftpd.conf
+                        sudo sed -i 's/^#chroot_local_user=NO/chroot_local_user=YES/' /etc/vsftpd.conf
+                        sudo sed -i 's/^#allow_writeable_chroot=YES/allow_writeable_chroot=NO/' /etc/vsftpd.conf
+                        sudo systemctl restart vsftpd
+                        echo "vsftpd has been hardened."
+                        ;;
+                    proftpd)
+                        # proftpd Hardening
+                        echo "Hardening proftpd..."
+                        sudo sed -i 's/^#DefaultRoot                  ~.*/DefaultRoot                   ~/' /etc/proftpd/proftpd.conf
+                        sudo sed -i 's/^#RequireValidShell            off/RequireValidShell            off/' /etc/proftpd/proftpd.conf
+                        sudo systemctl restart proftpd
+                        echo "proftpd has been hardened."
+                        ;;
+                    samba)
+                        # Samba Hardening
+                        echo "Hardening Samba..."
+                        sudo sed -i 's/^;restrict anonymous = no/restrict anonymous = yes/' /etc/samba/smb.conf
+                        sudo sed -i 's/^;security = user/security = user/' /etc/samba/smb.conf
+                        sudo sed -i 's/^;map to guest = bad user/map to guest = never/' /etc/samba/smb.conf
+                        sudo systemctl restart smbd
+                        echo "Samba has been hardened."
+                        ;;
+                    *)
+                        echo "No hardening available for this service."
+                        ;;
+                esac
                 ;;
             delete)
                 systemctl stop "$service"
@@ -461,19 +661,33 @@ chkrootkit
 echo "Lynis and chkrootkit completed their security audits." | tee -a "$LOG_FILE"
 progress_bar 5 "Running Security Audits"
 
-# Change all user passwords
+
 task_title "Changing User Passwords" "🔑"
-new_password="CyberPatr1ot36@#" 
-cut -f1 -d: /etc/passwd | grep -vE '\(root|nobody|sync|shutdown|halt\)' | while IFS= read -r user ; do
+new_password="CyberPatr1ot36@#"
+
+# Prompt for a user to exclude
+read -p "Enter the username to exclude from password change: " excluded_user
+
+# Exclude system users by matching UID ranges or better patterns.
+cut -f1 -d: /etc/passwd | grep -vE '^(root|nobody|sync|shutdown|halt)$' | while IFS= read -r user ; do
+    if [ "$user" == "$excluded_user" ]; then
+        echo -e "\033[1;33m⚠️ Skipping password change for $user.\033[0m"
+        continue  # Skip password change for this user
+    fi
+
     echo "Changing password for user: $user"
+    
+    # Use chpasswd more securely
     echo "$user:$new_password" | chpasswd
+    
     if [ $? -eq 0 ]; then
         echo -e "\033[1;32m✔️ Password for $user changed successfully.\033[0m"
-        log_change "Changed password for $user."
+        logger "Changed password for $user."
     else
         echo -e "\033[1;31m❌ Failed to change password for $user.\033[0m"
     fi
 done
+
 progress_bar 5 "Changing User Passwords"
 
 
