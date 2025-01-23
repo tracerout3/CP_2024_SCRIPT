@@ -1,0 +1,6 @@
+options {
+    recursion no;
+    allow-query { any; };
+    allow-transfer { none; };
+    allow-query { 127.0.0.1; };
+};
