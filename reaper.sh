@@ -80,23 +80,38 @@ progress_bar 5 "Installing Packages"
 # Disable guest login for LightDM, GDM, and SDDM
 task_title "Securing Login Manager" "🔐"
 echo "Securing LightDM, GDM, and SDDM login managers..."
+
 for manager in lightdm gdm sddm; do
     if systemctl is-active --quiet "$manager"; then
         # Disable guest login
         echo "Disabling guest login for $manager..."
         log_change "Disabled guest login for $manager."
+        
         case "$manager" in
             lightdm)
-                echo "allow-guest=false" | tee -a /etc/lightdm/lightdm.conf
+                # Disable guest login in LightDM
+                if ! grep -q "^allow-guest=false" /etc/lightdm/lightdm.conf; then
+                    echo "allow-guest=false" | sudo tee -a /etc/lightdm/lightdm.conf > /dev/null
+                fi
                 ;;
             gdm)
-                echo "AllowGuest=false" | tee -a /etc/gdm/custom.conf
+                # Disable guest login in GDM
+                if ! grep -q "^AllowGuest=false" /etc/gdm/custom.conf; then
+                    echo "AllowGuest=false" | sudo tee -a /etc/gdm/custom.conf > /dev/null
+                fi
                 ;;
             sddm)
-                echo "Disallowing guests in sddm.conf..."
-                echo "[General]" | tee -a /etc/sddm.conf
-                echo "UserSessions=lightdm" | tee -a /etc/sddm.conf
+                # Disable guest login in SDDM
+                if ! grep -q "^AllowGuest=false" /etc/sddm.conf; then
+                    echo "AllowGuest=false" | sudo tee -a /etc/sddm.conf > /dev/null
+                fi
                 ;;
+        esac
+    else
+        echo "$manager is not running, skipping..."
+    fi
+done
+
         esac
         # Disable automatic login
         echo "Disabling automatic login for $manager..."
