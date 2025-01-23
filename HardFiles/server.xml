@@ -1,0 +1,21 @@
+<Server port="8050" shutdown="SHUTDOWN">
+    <!-- Disable the default shutdown port -->
+    <Listener className="org.apache.catalina.startup.Catalina" port="8005" />
+    
+    <!-- Disable directory listing -->
+    <Context docBase="webapps" path="/" reloadable="true" crossContext="false"/>
+
+    <!-- Set a non-default manager and host app path -->
+    <Host name="localhost" appBase="/opt/tomcat/secured" unpackWARs="false" autoDeploy="false">
+    </Host>
+
+    <!-- Secure HTTP connector (no SSL/TLS, just limit protocols) -->
+    <Connector port="8080" protocol="HTTP/1.1" 
+               connectionTimeout="20000" 
+               disableUploadTimeout="true" 
+               maxThreads="200" 
+               minSpareThreads="25" 
+               maxHttpHeaderSize="8192" 
+               maxPostSize="1048576" 
+               URIEncoding="UTF-8" />
+</Server>
