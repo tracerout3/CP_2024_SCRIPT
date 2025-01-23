@@ -1,6 +1,13 @@
 options {
-    recursion no;
-    allow-query { any; };
-    allow-transfer { none; };
-    allow-query { 127.0.0.1; };
+    recursion no;                  # Disable recursion
+    allow-query { 127.0.0.1; };     # Allow only localhost to query
+    allow-transfer { none; };       # Disable zone transfers
+    allow-query-cache { none; };    # Disable caching for non-local queries
+    forwarders { 8.8.8.8; 8.8.4.4; };  # Use trusted DNS forwarders (optional)
+
+    # Disable DNSSEC if not required
+    dnssec-enable no;
+    
+    # Restrict access to only trusted IPs
+    allow-query { 192.168.1.0/24; };  # Allow local network queries
 };
