@@ -12,15 +12,6 @@ AllowTcpForwarding no                # Disable TCP forwarding to prevent tunneli
 X11Forwarding no                     # Disable X11 forwarding for better security
 UseDNS no                            # Disable DNS lookups to speed up connections and prevent DNS spoofing
 
-# Authentication settings
-PubkeyAuthentication yes             # Enforce public key authentication
-AuthorizedKeysFile .ssh/authorized_keys  # Location of authorized keys file
-IgnoreRhosts yes                     # Ignore .rhosts and .shosts files
-
-# Encryption settings
-Ciphers aes256-ctr,aes192-ctr,aes128-ctr # Strong encryption ciphers
-MACs hmac-sha2-256,hmac-sha2-512      # Strong message authentication codes
-KexAlgorithms curve25519-sha256@libssh.org,ecdh-sha2-nistp521,ecdh-sha2-nistp384 # Strong key exchange algorithms
 
 # Timeouts and connection settings
 ClientAliveInterval 300              # Send a keep-alive message every 5 minutes
