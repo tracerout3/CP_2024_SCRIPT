@@ -1,0 +1,34 @@
+# /etc/ssh/sshd_config (for server-side configuration)
+
+# Basic settings
+PermitRootLogin no                   # Disable root login (use sudo or su instead)
+PasswordAuthentication yes           # Disable password authentication (use SSH keys)
+ChallengeResponseAuthentication no   # Disable challenge-response authentication
+UsePAM no                            # Disable PAM (Pluggable Authentication Modules)
+MaxAuthTries 3                       # Limit the number of authentication attempts
+MaxSessions 2                        # Limit the number of concurrent sessions per connection
+PermitEmptyPasswords no              # Do not allow empty passwords
+AllowTcpForwarding no                # Disable TCP forwarding to prevent tunneling
+X11Forwarding no                     # Disable X11 forwarding for better security
+UseDNS no                            # Disable DNS lookups to speed up connections and prevent DNS spoofing
+
+# Authentication settings
+PubkeyAuthentication yes             # Enforce public key authentication
+AuthorizedKeysFile .ssh/authorized_keys  # Location of authorized keys file
+IgnoreRhosts yes                     # Ignore .rhosts and .shosts files
+
+# Encryption settings
+Ciphers aes256-ctr,aes192-ctr,aes128-ctr # Strong encryption ciphers
+MACs hmac-sha2-256,hmac-sha2-512      # Strong message authentication codes
+KexAlgorithms curve25519-sha256@libssh.org,ecdh-sha2-nistp521,ecdh-sha2-nistp384 # Strong key exchange algorithms
+
+# Timeouts and connection settings
+ClientAliveInterval 300              # Send a keep-alive message every 5 minutes
+ClientAliveCountMax 0                # Disconnect client after 5 minutes of inactivity
+LoginGraceTime 30                    # Give a maximum of 30 seconds for successful login
+TCPKeepAlive yes                     # Enable TCP keep-alive to maintain connections
+
+# Banner and logging
+Banner /etc/issue.net                # Display a custom security warning upon login
+LogLevel VERBOSE                     # Log more detailed information for troubleshooting
+SyslogFacility AUTH                  # Use the AUTH facility for logging
