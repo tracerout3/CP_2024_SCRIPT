@@ -2,11 +2,15 @@
 
    Application Hardening
       s
+      
    Chromium Hardening
       s
+      
    Locate 9/11 (find osama)
       s
+      
 package manager fixes
+
 
 Steps to Regenerate APT Keyring
 
