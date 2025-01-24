@@ -104,3 +104,5 @@ sudo nano /etc/audit/rules.d/audit.rules
 -w /etc/sudoers -p wa -k sudoers-file
 # Monitor /etc/sudoers.d directory for changes
 -w /etc/sudoers.d/ -p wa -k sudoers-dir
+sudo find / -type f \( -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" -o -iname "*.gif" -o -iname "*.bmp" -o -iname "*.tiff" -o -iname "*.webp" -o -iname "*.svg" \)
+
