@@ -97,3 +97,10 @@ Easy Points
   sudo sysctl -p
   Disable sharing the screen by going to settings -> sharing then turn it off
   
+sudo nano /etc/audit/rules.d/audit.rules
+# Log all sudo command executions
+-a always,exit -F arch=b64 -S execve -C uid!=euid -k sudo-command
+# Monitor access to /etc/sudoers
+-w /etc/sudoers -p wa -k sudoers-file
+# Monitor /etc/sudoers.d directory for changes
+-w /etc/sudoers.d/ -p wa -k sudoers-dir
