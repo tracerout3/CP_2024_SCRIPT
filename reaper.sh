@@ -287,13 +287,190 @@ systemctl enable fail2ban
 systemctl start fail2ban
 log_change "Configured UFW and Fail2Ban."
 
+# ========================================================
+# Inserting the first block of code (user and group management) here
+# ========================================================
+
+# Task title (for display purposes)
+task_title="Managing Users and Groups 👥"
+
+# Define color codes
+RED='\033[0;31m'
+YELLOW='\033[1;33m'
+GREEN='\033[0;32m'
+RESET='\033[0m'  # Reset to default color
+
+# Function to list users with /bin/bash, /bin/sh, or /bin/zsh shell along with their groups
+list_users() {
+    echo -e "\nUsers with /bin/bash, /bin/sh, or /bin/zsh shell and their groups:\n"
+    users=()
+
+    while IFS=: read -r user _ _ _ _ _ shell; do
+        if [[ "$shell" == "/bin/bash" || "$shell" == "/bin/sh" || "$shell" == "/bin/zsh" ]]; then
+            users+=("$user")
+            groups=$(groups "$user" | cut -d: -f2 | xargs)  # Get groups and trim leading spaces
+
+            # Print each user with their groups
+            echo -e "[ * ] $user"
+            # Print each group with color coding
+            for group in $groups; do
+                if [[ "$group" == "sudo" ]]; then
+                    # Color sudo group in red
+                    echo -e "   ${RED}$group${RESET}"
+                elif [[ "$group" =~ [^a-zA-Z0-9_] ]]; then
+                    # Color unusual groups (non-alphanumeric) in yellow
+                    echo -e "   ${YELLOW}$group${RESET}"
+                else
+                    # Default color for normal groups
+                    echo -e "   ${GREEN}$group${RESET}"
+                fi
+            done
+            echo -e "\n"  # Add space between users for readability
+        fi
+    done < /etc/passwd
+
+    if [ ${#users[@]} -eq 0 ]; then
+        echo "No users with /bin/bash, /bin/sh, or /bin/zsh shell found."
+        return 1
+    fi
+}
+
+# Function to modify a user's group membership (add/remove)
+modify_user_group() {
+    read -p "Enter the username to modify: " username
+
+    # Check if the user exists in the list of users
+    if [[ ! " ${users[@]} " =~ " $username " ]]; then
+        echo "User $username does not exist or does not have a specified shell."
+        return 1
+    fi
+
+    read -p "Do you want to add or remove the user from a group? [add/remove]: " action
+    read -p "Enter the group name: " group
+
+    if [[ "$action" == "add" ]]; then
+        if sudo usermod -aG "$group" "$username"; then
+            echo "$username added to $group."
+        else
+            echo "Failed to add $username to $group. Please check if the group exists."
+        fi
+    elif [[ "$action" == "remove" ]]; then
+        if sudo deluser "$username" "$group"; then
+            echo "$username removed from $group."
+        else
+            echo "Failed to remove $username from $group. Please check if the group exists."
+        fi
+    else
+        echo "Invalid action. Please use 'add' or 'remove'."
+    fi
+}
+
+# Function to delete users
+delete_user() {
+    read -p "Enter the username to delete: " username
+
+    # Check if the user exists in the list of users
+    if [[ ! " ${users[@]} " =~ " $username " ]]; then
+        echo "User $username does not exist or does not have a specified shell."
+        return 1
+    fi
+
+    echo "You have selected user: $username"
+    echo -n "Are you sure you want to delete this user? (yes/no): "
+    read confirmation
+
+    if [ "$confirmation" != "yes" ]; then
+        echo "User deletion aborted for $username."
+        return
+    fi
+
+    sudo userdel -r "$username"
+
+    if [ $? -eq 0 ]; then
+        echo "User $username has been deleted."
+    else
+        echo "Failed to delete user $username."
+    fi
+}
+
+# Function to add a new user
+add_user() {
+    read -p "Enter the new username to add: " new_user
+    read -p "Enter the shell for the new user (e.g., /bin/bash): " shell
+    read -p "Enter the group for the new user: " group
+
+    # Check if the user already exists
+    if id "$new_user" &>/dev/null; then
+        echo "User $new_user already exists."
+        return 1
+    fi
+
+    # Create the new user with the specified shell and group
+    sudo useradd -m -s "$shell" -G "$group" "$new_user"
+
+    if [ $? -eq 0 ]; then
+        echo "User $new_user has been added with shell $shell and group $group."
+    else
+        echo "Failed to add user $new_user. Please check if the group exists."
+    fi
+}
+
+# Function to continue or exit
+continue_or_exit() {
+    echo -n "Would you like to perform another action? [yes/no]: "
+    read answer
+    if [[ "$answer" == "yes" ]]; then
+        return 0  # Continue
+    elif [[ "$answer" == "no" ]]; then
+        echo "Moving on (its a simply thing)"
+        break  # Exit completely
+    else
+        echo "Invalid response. Please type 'yes' to continue or 'no' to exit."
+    fi
+}
+
+# Main execution for user and group management
+echo -e "\nWelcome to the User Management Script!"
+
+while true; do
+    # List users and allow user to choose an action
+    list_users
+
+    # If users were found, prompt for further actions
+    if [ $? -eq 0 ]; then
+        echo -n "Would you like to modify a user's group, delete a user, add a new user, or exit? [modify/delete/add/exit]: "
+        read action
+
+        if [ "$action" == "modify" ]; then
+            modify_user_group
+        elif [ "$action" == "delete" ]; then
+            delete_user
+        elif [ "$action" == "add" ]; then
+            add_user
+        elif [ "$action" == "exit" ]; then
+            echo "Skipping action and continuing..."
+            break  # Continue without quitting
+        else
+            echo "Invalid action. Please choose 'modify', 'delete', 'add', or 'exit'."
+        fi
+    fi
+
+    # Ask if the user wants to continue or exit after performing the action
+    continue_or_exit
+done
+
+# ========================================================
+# End of the first block of code
+# ========================================================
+
 # Remove common hacking tools
 task_title "Removing Hacking Tools" "🛑"
 tools=(
-    "beef" "bettercap" "burpsuite" "canvas" "caine" "core-impact" "cryptcat" "cain" "cowpatty" "dsniff" "dovecot" "ettercap" "fping" "foremost" "freeciv" "ftp" "grendel-scan" "hashcat" "hping3" "inssider" "john" "kismet" "lighttpd" "l0phtcrack" "medusa" "mimikatz" "minetest" "minetest-server" "mysql" "nc" "netcat" "netcat-traditional" "ngrep" "nikto" "nmap" "netscan" "openvas" "openssl" "ophcrack" "postgresql" "powersploit" "pcredz" "reaver" "reelphish" "rexd" "rlogind" "rshd" "rcmd" "rbootd" "rquotad" "rstatd" "samba" "sendmail" "snmp" "sqlmap" "superscan" "systemd" "tftpd" "tightvncserver" "truecrack" "vega" "vsftpd" "wifiphisher" "wifite" "x11vnc" "zap" "zenmap" "zlib"
+   "beef" "bettercap" "burpsuite" "canvas" "caine" "core-impact" "cryptcat" "cain" "cowpatty" "dsniff" "dovecot" "ettercap" "fping" "foremost" "freeciv" "ftp" "grendel-scan" "hashcat" "hping3" "inssider" "john" "kismet" "lighttpd" "l0phtcrack" "medusa" "mimikatz" "minetest" "minetest-server" "mysql" "nc" "netcat" "netcat-traditional" "ngrep" "nikto" "nmap" "netscan" "openvas" "openssl" "ophcrack" "postgresql" "powersploit" "pcredz" "reaver" "reelphish" "rexd" "rlogind" "rshd" "rcmd" "rbootd" "rquotad" "rstatd" "samba" "sendmail" "snmp" "sqlmap" "superscan" "systemd" "tftpd" "tightvncserver" "truecrack" "vega" "vsftpd" "wifiphisher" "wifite" "x11vnc" "zap" "zenmap" "zlib"
     "supertuxkart" "0ad" "wesnoth" "openra" "tome" "freeciv" "bastion" "minetest" "warsow" "xonotic" "red eclipse" "hexen2" "pioneer" "openxcom" "naev" "flames of revenge" "crea" "frozen-bubble" "darkplaces" "unvanquished" "freedoom" "glest" "megaglest" "battle for wesnoth" "liberated pixel cup" "super tux" "the-curse" "teeworlds" "gargoyle" "zaz" "spring"
     "unrar" "p7zip" "rar" "libtorrent" "webtorrent-cli" "torrentfile" "aria2" "nload" "iftop" "speedometer" "utorrent" "bittorrent" "filezilla" "syncthing" "torrentflux" "plex" "emby"
     "qbittorrent" "transmission" "deluge" "frostwire" "ktorrent" "aria2" "fusee" "freedownloadmanager" "rtorrent" "monsoon" "popcorn-time" "jdownloader"
+)
 )
 for tool in "${tools[@]}"; do
     if dpkg -l | grep -q "$tool"; then
@@ -349,6 +526,9 @@ fi
 # Kill all netcat processes
 task_title "Killing Netcat Processes" "🚨"
 pkill -9 nc
+pkill -9 netcat
+pkill -9 ncat
+pkill -9 netcat-bsd
 if [ $? -eq 0 ]; then
     log_change "Killed all netcat processes."
 else
