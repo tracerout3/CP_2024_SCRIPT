@@ -1,11 +1,16 @@
 #!/bin/bash
 
+# Create a directory for logs and backups
+LOGS_DIR="$HOME/SecurityLogs"
+mkdir -p "$LOGS_DIR"
+LOG_FILE="$LOGS_DIR/notes.txt"
+
 # Display ASCII Art at the beginning
 cat << "EOF"
               ...                            
              ;::::;                          
            ;::::; :;                         
-         ;:::::'   :;                        
+         ;:::::'   ;                         
         ;:::::;     ;.                       
        ,:::::'       ;           OOO\        
        ::::::;       ;          OOOOO\       
@@ -30,8 +35,7 @@ echo -e "\033[1;33mCredits:\033[0m"
 echo "Reap And Sow...."
 echo "Script created by Traceroute"
 
-# Log file for tracking important changes
-LOG_FILE="notes.txt"
+# Initialize log file
 echo "Log of changes made by the script" > "$LOG_FILE"
 echo "=================================" >> "$LOG_FILE"
 echo "Execution started at $(date)" >> "$LOG_FILE"
@@ -317,14 +321,20 @@ if ! command -v curl &> /dev/null; then
 fi
 curl -L https://github.com/carlospolop/PEASS-ng/releases/latest/download/linpeas.sh -o linpeas.sh
 chmod +x linpeas.sh
-./linpeas.sh | tee linpeas_report.txt
-log_change "LinPEAS report generated: linpeas_report.txt."
+./linpeas.sh | tee "$LOGS_DIR/linpeas_report.txt"
+log_change "LinPEAS report generated: $LOGS_DIR/linpeas_report.txt."
 
 # Run Lynis and chkrootkit for security audits
 task_title "Running Lynis and chkrootkit" "🔍"
-lynis audit system | tee lynis_report.txt
-chkrootkit | tee chkrootkit_report.txt
-log_change "Lynis and chkrootkit reports generated."
+lynis audit system | tee "$LOGS_DIR/lynis_report.txt"
+chkrootkit | tee "$LOGS_DIR/chkrootkit_report.txt"
+log_change "Lynis and chkrootkit reports generated: $LOGS_DIR/lynis_report.txt and $LOGS_DIR/chkrootkit_report.txt."
+
+# Backup old crontab before replacing it
+task_title "Backing Up Old Crontab" "⏰"
+OLD_CRONTAB_FILE="$LOGS_DIR/old_crontab.txt"
+crontab -l > "$OLD_CRONTAB_FILE"
+log_change "Backed up old crontab to $OLD_CRONTAB_FILE."
 
 # Replace crontab with a secure version
 task_title "Replacing Crontab" "⏰"
@@ -363,13 +373,13 @@ progress_bar 5 "Changing User Passwords"
 task_title "Searching and Deleting .mp3 Files" "🎵"
 read -p "Enter the directory to search for .mp3 files (default is /home): " search_dir
 search_dir=${search_dir:-/home}
-find "$search_dir" -type f -iname "*.mp3" | tee mp3_files_list.txt
+find "$search_dir" -type f -iname "*.mp3" | tee "$LOGS_DIR/mp3_files_list.txt"
 read -p "Do you want to delete all .mp3 files listed above? (yes/no): " delete_confirmation
 if [ "$delete_confirmation" = "yes" ]; then
     while read -r mp3_file; do
         rm -f "$mp3_file"
         log_change "Deleted .mp3 file: $mp3_file."
-    done < mp3_files_list.txt
+    done < "$LOGS_DIR/mp3_files_list.txt"
 fi
 progress_bar 5 "Deleting .mp3 Files"
 
