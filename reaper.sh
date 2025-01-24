@@ -28,7 +28,7 @@ EOF
 # Display Credits
 echo -e "\033[1;33mCredits:\033[0m"
 echo "Reap And Sow...."
-echo "Script created by Traceroute and ChatGPT"
+echo "Script created by Traceroute"
 
 # Log file for tracking important changes
 LOG_FILE="notes.txt"
@@ -163,10 +163,6 @@ else
     echo "No xinit configuration found. Skipping this step."
 fi
 
-# Step 3: Restart the X server for the changes to take effect
-echo "Restarting the X server..."
-sudo systemctl restart display-manager
-
 echo "TCP connections to the X server have been disabled."
 
 
@@ -227,6 +223,7 @@ task_title "Managing Services" "⚙️"
 # Services to manage
 services=("ssh" "nginx" "ftp" "vsftpd" "apache2" "proftpd" "samba")
 
+# Iterate over services
 for service in "${services[@]}"; do
     if systemctl is-active --quiet "$service"; then
         read -p "Service '$service' is running. Do you want to keep or delete it? (keep/delete): " action
@@ -236,135 +233,132 @@ for service in "${services[@]}"; do
                 
                 # Basic hardening for each service
                 case "$service" in
-                    ssh)
-                        # SSH hardening: Disable root login
-                        echo "Hardening SSH..."
-                        sudo sed -i 's/^\(#\?\)PermitRootLogin .*/PermitRootLogin no/' /etc/ssh/sshd_config
+                  ssh)
+                    # SSH hardening: Disable root login
+                    echo "Hardening SSH..."
+                    source_file="$HOME/CP_2024_SCRIPT/HardFiles/sshd_config"
+                    target_file="/etc/ssh/sshd_config"
+
+                    # Replace the SSH config
+                    if [ -f "$source_file" ]; then
+                        sudo cp "$source_file" "$target_file"
                         sudo systemctl restart sshd
                         echo "SSH has been hardened."
-                        ;;
-                    apache2)
-                        # Apache hardening (already included in previous logic)
-                        echo "Starting Apache hardening process..."
+                    else
+                        echo "Source SSH config file not found at $source_file"
+                    fi
+                    ;;
+                  apache2)
+                    # Apache hardening
+                    echo "Starting Apache hardening process..."
+                    source_file="$HOME/CP_2024_SCRIPT/HardFiles/apache2.conf"
+                    target_file="/etc/apache2/apache2.conf"
 
-                        # Ensure Apache is up to date
-                        sudo apt update && sudo apt upgrade -y
-
-                        # Disable unnecessary Apache modules
-                        sudo a2dismod status
-                        sudo a2dismod autoindex
-                        sudo a2dismod userdir
-                        sudo a2dismod cgi
-
-                        # Secure Apache configurations in /etc/apache2/apache2.conf
-                        sudo sed -i 's/^#ServerSignature.*/ServerSignature Off/' /etc/apache2/apache2.conf
-                        sudo sed -i 's/^#ServerTokens.*/ServerTokens Prod/' /etc/apache2/apache2.conf
-                        sudo echo "<Directory /var/www/>
-                            Options -Indexes
-                            AllowOverride None
-                            Order allow,deny
-                            Deny from all
-                            <Files ~ \"^\.ht\">
-                              Require all denied
-                            </Files>
-                        </Directory>" >> /etc/apache2/apache2.conf
-
-                        # Enable SSL and configure strong encryption
-                        sudo a2enmod ssl
+                    # Replace the Apache config
+                    if [ -f "$source_file" ]; then
+                        sudo cp "$source_file" "$target_file"
                         sudo systemctl restart apache2
-                        sudo bash -c 'cat <<EOF > /etc/apache2/sites-available/default-ssl.conf
-                        <VirtualHost _default_:443>
-                            ServerAdmin webmaster@localhost
-                            DocumentRoot /var/www/html
-                            SSLEngine on
-                            SSLCertificateFile /etc/ssl/certs/ssl-cert-snakeoil.pem
-                            SSLCertificateKeyFile /etc/ssl/private/ssl-cert-snakeoil.key
-                            SSLProtocol All -SSLv2 -SSLv3
-                            SSLCipherSuite HIGH:!aNULL:!MD5
-                            SSLOptions +StrictRequire
-                            <Directory /var/www/>
-                                Options -Indexes
-                                AllowOverride None
-                                Require all granted
-                            </Directory>
-                        </VirtualHost>
-                        EOF'
+                        echo "Apache has been hardened."
+                    else
+                        echo "Source Apache config file not found at $source_file"
+                    fi
 
-                        # Secure the Apache User & Permissions
-                        sudo usermod -s /usr/sbin/nologin www-data
-                        sudo chown -R root:root /etc/apache2/
-                        sudo chmod -R 700 /etc/apache2/
+                    # Additional Apache steps
+                    sudo apt update && sudo apt upgrade -y
+                    sudo a2dismod status
+                    sudo a2dismod autoindex
+                    sudo a2dismod userdir
+                    sudo a2dismod cgi
+                    sudo sed -i 's/^#ServerSignature.*/ServerSignature Off/' "$target_file"
+                    sudo sed -i 's/^#ServerTokens.*/ServerTokens Prod/' "$target_file"
+                    sudo echo "<Directory /var/www/>
+                        Options -Indexes
+                        AllowOverride None
+                        Order allow,deny
+                        Deny from all
+                        <Files ~ \"^\.ht\">
+                          Require all denied
+                        </Files>
+                    </Directory>" >> "$target_file"
+                    sudo systemctl restart apache2
+                    ;;
+                  nginx)
+                    # Nginx Hardening
+                    echo "Hardening Nginx..."
+                    source_file="$HOME/CP_2024_SCRIPT/HardFiles/nginx.conf"
+                    target_file="/etc/nginx/nginx.conf"
 
-                        # Limit Request Size (DDoS Protection)
-                        sudo sed -i 's/#LimitRequestBody.*/LimitRequestBody 10485760/' /etc/apache2/apache2.conf
-
-                        # Disable directory listing
-                        sudo sed -i 's/Options Indexes FollowSymLinks/Options FollowSymLinks/' /etc/apache2/apache2.conf
-
-                        # Enable ModSecurity (Web Application Firewall)
-                        sudo apt install libapache2-mod-security2 -y
-                        sudo a2enmod security2
-                        sudo systemctl restart apache2
-
-                        # Configure Apache to only listen on localhost
-                        sudo sed -i 's/^Listen 80$/Listen 127.0.0.1:80/' /etc/apache2/ports.conf
-
-                        # Restart Apache to apply changes
-                        sudo systemctl restart apache2
-
-                        echo "Apache hardening complete!"
-                        ;;
-                    nginx)
-                        # Nginx Hardening
-                        echo "Hardening Nginx..."
-                        sudo sed -i 's/^#server_tokens on;/server_tokens off;/' /etc/nginx/nginx.conf
-                        sudo sed -i 's/^#client_max_body_size .*/client_max_body_size 10M;/' /etc/nginx/nginx.conf
+                    if [ -f "$source_file" ]; then
+                        sudo cp "$source_file" "$target_file"
                         sudo systemctl restart nginx
                         echo "Nginx has been hardened."
-                        ;;
-                    vsftpd)
-                        # vsftpd Hardening
-                        echo "Hardening vsftpd..."
-                        sudo sed -i 's/^#listen=NO/listen=YES/' /etc/vsftpd.conf
-                        sudo sed -i 's/^#chroot_local_user=NO/chroot_local_user=YES/' /etc/vsftpd.conf
-                        sudo sed -i 's/^#allow_writeable_chroot=YES/allow_writeable_chroot=NO/' /etc/vsftpd.conf
+                    else
+                        echo "Source Nginx config file not found at $source_file"
+                    fi
+                    ;;
+                  vsftpd)
+                    # vsftpd Hardening
+                    echo "Hardening vsftpd..."
+                    source_file="$HOME/CP_2024_SCRIPT/HardFiles/vsftpd.conf"
+                    target_file="/etc/vsftpd.conf"
+
+                    if [ -f "$source_file" ]; then
+                        sudo cp "$source_file" "$target_file"
                         sudo systemctl restart vsftpd
                         echo "vsftpd has been hardened."
-                        ;;
-                    proftpd)
-                        # proftpd Hardening
-                        echo "Hardening proftpd..."
-                        sudo sed -i 's/^#DefaultRoot                  ~.*/DefaultRoot                   ~/' /etc/proftpd/proftpd.conf
-                        sudo sed -i 's/^#RequireValidShell            off/RequireValidShell            off/' /etc/proftpd/proftpd.conf
+                    else
+                        echo "Source vsftpd config file not found at $source_file"
+                    fi
+                    ;;
+                  proftpd)
+                    # proftpd Hardening
+                    echo "Hardening proftpd..."
+                    source_file="$HOME/CP_2024_SCRIPT/HardFiles/proftpd.conf"
+                    target_file="/etc/proftpd/proftpd.conf"
+
+                    if [ -f "$source_file" ]; then
+                        sudo cp "$source_file" "$target_file"
                         sudo systemctl restart proftpd
                         echo "proftpd has been hardened."
-                        ;;
-                    samba)
-                        # Samba Hardening
-                        echo "Hardening Samba..."
-                        sudo sed -i 's/^;restrict anonymous = no/restrict anonymous = yes/' /etc/samba/smb.conf
-                        sudo sed -i 's/^;security = user/security = user/' /etc/samba/smb.conf
-                        sudo sed -i 's/^;map to guest = bad user/map to guest = never/' /etc/samba/smb.conf
+                    else
+                        echo "Source proftpd config file not found at $source_file"
+                    fi
+                    ;;
+                  samba)
+                    # Samba Hardening
+                    echo "Hardening Samba..."
+                    source_file="$HOME/CP_2024_SCRIPT/HardFiles/smb.conf"
+                    target_file="/etc/samba/smb.conf"
+
+                    if [ -f "$source_file" ]; then
+                        sudo cp "$source_file" "$target_file"
                         sudo systemctl restart smbd
                         echo "Samba has been hardened."
-                        ;;
-                    *)
-                        echo "No hardening available for this service."
-                        ;;
-                esac
+                    else
+                        echo "Source Samba config file not found at $source_file"
+                    fi
+                    ;;
+                  *)
+                    echo "No hardening available for this service."
+                    ;;
+                esac  # End of service-specific hardening
                 ;;
             delete)
-                systemctl stop "$service"
-                systemctl disable "$service"
-                echo "$service has been stopped and disabled."
-                log_change "Stopped and disabled service: $service."
+                echo "Deleting $service."
+                # Code to delete or disable the service (e.g., stopping and disabling it)
+                sudo systemctl stop "$service"
+                sudo systemctl disable "$service"
+                echo "$service has been deleted."
                 ;;
             *)
-                echo "Invalid action for $service. Skipping."
+                echo "Invalid action for $service."
                 ;;
-        esac
+        esac  # End of action choice (keep/delete)
+    else
+        echo "Service '$service' is not running."
     fi
-done
+done  # End of for loop
+
 progress_bar 5 "Managing Services"
 
 # Task title (for display purposes)
@@ -633,20 +627,6 @@ sed -i '/nullok/s/nullok//' /etc/pam.d/common-auth
 
 echo "PAM Authentication updated: minimum password length 14, null passwords disabled." | tee -a "$LOG_FILE"
 progress_bar 3 "Configuring PAM"
-
-# SSH Hardening
-task_title "Hardening SSH Configuration" "🔒"
-echo "Hardening SSH configuration..."
-
-# Disable root login and configure other settings
-sudo sed -i 's/^\(#\?\)PermitRootLogin .*/PermitRootLogin no/' /etc/ssh/sshd_config
-
-# sed -i 's/^#PasswordAuthentication .*/PasswordAuthentication no/' /etc/ssh/sshd_config
-# sed -i 's/^#AllowUsers .*/AllowUsers myuser/' /etc/ssh/sshd_config # Replace 'myuser' with your username(s)
-# sed -i 's/^#Port .*/Port 22/' /etc/ssh/sshd_config # You can change port here if you like
-
-# Restart SSH service to apply changes
-systemctl restart sshd
 
 echo "SSH hardening completed: root login disabled, password authentication disabled, user access restricted." | tee -a "$LOG_FILE"
 progress_bar 3 "Hardening SSH"
