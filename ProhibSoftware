@@ -1,0 +1,27 @@
+Package Names List:
+apache2, bind9, beef, bettercap, burpsuite, canvas, caine, core-impact, cryptcat, cain, cowpatty, dsniff, dovecot, ettercap, fping, foremost, freeciv, ftp, grendel-scan, hashcat, hping3, inssider, john, kismet, lighttpd, l0phtcrack, medusa, mimikatz, minetest, minetest-server, mysql, nc, netcat, netcat-traditional, ngrep, nikto, nmap, netscan, openvas, openssl, ophcrack, postgresql, powersploit, pcredz, reaver, reelphish, rexd, rlogind, rshd, rcmd, rbootd, rquotad, rstatd, samba, sendmail, snmp, sqlmap, superscan, systemd, tftpd, tightvncserver, truecrack, vega, vsftpd, wifiphisher, wifite, x11vnc, zap, zenmap, zlib
+
+
+Gaming Tools and Emulators for Linux (Package Names Only):
+
+steam, lutris, playonlinux, wine, steam, dosbox, scummvm, mame, zsnes, snes9x, ppsspp, cemu, yuzu, citra, retroarch, rpcs3, pcsx2, dolphin-emu, retroarch, rpcs3, fceux, mednafen, kega-fusion, openra, wine-staging, vulkan-utils, steamcmd, bottles, heroic-games-launcher, gamehub, feral-games, lincity-ng, trello, tigervnc-viewer
+
+
+-
+Torrent Clients (Package Names Only):
+
+qbittorrent, transmission, deluge, frostwire, ktorrent, aria2, fusee, freedownloadmanager, rtorrent, monsoon, popcorn-time, jdownloader
+
+
+
+_
+Related Software for Torrenting (Package Names Only):
+
+unrar, p7zip, rar, libtorrent, webtorrent-cli, torrentfile, aria2, curl, nload, iftop, speedometer, utorrent, bittorrent, filezilla, syncthing, torrentflux, plex, emby
+
+
+Open Source, Free Games for Linux (Package Names Only):
+
+supertuxkart, 0ad, wesnoth, openra, tome, freeciv, bastion, minetest, warsow, xonotic, red eclipse, hexen2, pioneer, openxcom, naev, flames of revenge, crea, frozen-bubble, darkplaces, unvanquished, freedoom, glest, megaglest, battle for wesnoth, liberated pixel cup, super tux, the-curse, teeworlds, gargoyle, zaz, spring
+
+
