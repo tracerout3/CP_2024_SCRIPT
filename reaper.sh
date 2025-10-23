@@ -30,37 +30,6 @@ echo -e "\033[1;33mCredits:\033[0m"
 echo "Reap And Sow...."
 echo "Script created by Traceroute"
 
-# Log file for tracking important changes
-LOG_FILE="notes.txt"
-echo "Log of changes made by the script" > "$LOG_FILE"
-echo "=================================" >> "$LOG_FILE"
-echo "Execution started at $(date)" >> "$LOG_FILE"
-echo "" >> "$LOG_FILE"
-
-# Function to log changes to the file
-log_change() {
-    echo "$1" >> "$LOG_FILE"
-}
-
-# Function to print progress bar
-progress_bar() {
-    local duration=$1
-    local task=$2
-    local bar_length=50
-    echo -n "$task "
-    for i in $(seq 1 $bar_length); do
-        echo -n "█"
-        sleep $(($duration / $bar_length))
-    done
-    echo -e "\nDone!"
-}
-
-# Function to print task title and icon
-task_title() {
-    local title=$1
-    local icon=$2
-    echo -e "\n\033[1;32m$icon $title\033[0m"
-}
 
 # Check if running as root
 if [ "$EUID" -ne 0 ]; then
@@ -70,7 +39,7 @@ fi
 
 #locks root and secures /etc/shadow
 chmod 640 /etc/shadow
-
+passwd -
 # Update and install necessary tools
 task_title "Updating and Installing Tools" "🔧"
 apt-get update && apt-get upgrade -y
@@ -264,7 +233,7 @@ for service in "${services[@]}"; do
                     fi
 
                     # Additional Apache steps
-                    sudo apt update && sudo apt upgrade -y
+                    
                     sudo a2dismod status
                     sudo a2dismod autoindex
                     sudo a2dismod userdir
@@ -604,11 +573,84 @@ echo "Firewall and Fail2Ban configurations completed." | tee -a "$LOG_FILE"
 progress_bar 5 "Securing Firewall and Fail2Ban"
 
 # Remove common hacking tools
-task_title "Removing Hacking Tools" "🛑"
-tools=("nmap" "ophcrack" "netcat" "netcat-bsd" "metasploit" "hydra" "john" "aircrack-ng" "wireshark" "aisleriot" "wireshark-qt" "wireshark-common" "tcpdump")
+task_title "Removing Evil Maniacle tools used for the sole purpose of terror and hate" "🛑"
+tools=(
+  # Previous Tools
+  "nmap" "ophcrack" "netcat" "netcat-bsd" "metasploit" "hydra" "john" "aircrack-ng" 
+  "wireshark" "aisleriot" "wireshark-qt" "wireshark-common" "tcpdump" "burpsuite" 
+  "bettercap" "canvas" "caine" "core-impact" "cryptcat" "cain" "cowpatty" "dsniff" 
+  "dovecot" "ettercap" "fping" "foremost" "freeciv" "ftp" "grendel-scan" "hashcat" 
+  "hping3" "inssider" "kismet" "lighttpd" "l0phtcrack" "medusa" "mimikatz" "minetest" 
+  "minetest-server" "mysql" "nc" "ngrep" "nikto" "nmap" "netscan" "openvas" "openssl" 
+  "ophcrack" "postgresql" "powersploit" "pcredz" "reaver" "reelphish" "rexd" "rlogind" 
+  "rshd" "rcmd" "rbootd" "rquotad" "rstatd" "sendmail" "snmp" "sqlmap" "superscan" 
+  "systemd" "tftpd" "tightvncserver" "truecrack" "vega" "zenmap" "zlib"
+
+  # Web Application Security
+  "webscarab" "wapiti" "skipfish" "arachni" "owasp-zap" "commix" "wfuzz" "dirbuster" 
+  "burpsuite" "nikto" "sqlmap"
+
+  # Password Cracking/Brute-forcing
+  "rainbowcrack" "medusa" "aircrack-ng" "crowbar" "john" "hashcat" "hydra" 
+
+  # Exploit Frameworks
+  "metasploit" "canvas" "beef" "exploitdb" "artillery" "kali-tools"
+
+  # Wireless Hacking Tools
+  "airodump-ng" "evilap" "mdk3" "bully" "aircrack-ng" "kismet" "wifite" "reaver" 
+  "wifiphisher" 
+
+  # Reverse Engineering/Forensics
+  "volatility" "ghidra" "radare2" "ollydbg" "frida" "binwalk" "immunitydebugger" 
+  "peepdf" "x32dbg" "x64dbg" "gdb"
+
+  # Network Analysis Tools
+  "zeek" "suricata" "etherape" "netflow-tools" "snort" "wireshark" "tcpdump" "masscan" 
+  "fping" "nmap" "netscan"
+
+  # Exploitation
+  "setoolkit" "empire" "pupy" "cobaltstrike" "beef" "social-engineering-toolkit"
+
+  # Cryptography/Hashing
+  "openssl" "cryptool" "truecrypt" "veracrypt" "john-the-ripper" "hashcat"
+
+  # Network Tools/Scanners
+  "nessus" "openvas" "masscan" "fping" "floodping" "tcpdump"
+
+  # Social Engineering
+  "phishingfrenzy" "kingphisher" "caliphish" "social-engineering-toolkit" 
+
+  # Additional Tools for System and Network Analysis
+  "hping" "sockstat" "ngrep" "tcpflow" "wireshark" "strace" "lsof" "nmap" "fping"
+  "mtr" "iftop" "speedometer" "curl" "wget"
+
+  # Gaming Tools and Emulators for Linux
+  "steam" "lutris" "playonlinux" "wine" "dosbox" "scummvm" "mame" "zsnes" "snes9x" 
+  "ppsspp" "cemu" "yuzu" "citra" "retroarch" "rpcs3" "pcsx2" "dolphin-emu" "retroarch" 
+  "fceux" "mednafen" "kega-fusion" "openra" "wine-staging" "vulkan-utils" "steamcmd" 
+  "bottles" "heroic-games-launcher" "gamehub" "feral-games" "lincity-ng" "trello" 
+  "tigervnc-viewer"
+
+  # Torrent Clients
+  "qbittorrent" "transmission" "deluge" "frostwire" "ktorrent" "aria2" "fusee" 
+  "freedownloadmanager" "rtorrent" "monsoon" "popcorn-time" "jdownloader"
+
+  # Related Software for Torrenting
+  "unrar" "p7zip" "rar" "libtorrent" "webtorrent-cli" "torrentfile" "aria2" "curl" 
+  "nload" "iftop" "speedometer" "utorrent" "bittorrent" "filezilla" "syncthing" 
+  "torrentflux" "plex" "emby"
+
+  # Open Source, Free Games for Linux
+  "supertuxkart" "0ad" "wesnoth" "openra" "tome" "freeciv" "bastion" "minetest" "warsow" 
+  "xonotic" "red-eclipse" "hexen2" "pioneer" "openxcom" "naev" "flames-of-revenge" "crea" 
+  "frozen-bubble" "darkplaces" "unvanquished" "freedom" "glest" "megaglest" "battle-for-wesnoth" 
+  "liberated-pixel-cup" "super-tux" "the-curse" "teeworlds" "gargoyle" "zaz" "spring"
+)
+
 for tool in "${tools[@]}"; do
     if dpkg -l | grep -q "$tool"; then
         apt-get remove --purge -y "$tool"
+        apt autoremove
         echo "$tool has been removed."
         log_change "Removed tool: $tool."
     fi
