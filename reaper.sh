@@ -39,7 +39,7 @@ fi
 
 #locks root and secures /etc/shadow
 chmod 640 /etc/shadow
-passwd -
+passwd -l "root
 # Update and install necessary tools
 task_title "Updating and Installing Tools" "🔧"
 apt-get update && apt-get upgrade -y
