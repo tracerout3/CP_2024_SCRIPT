@@ -43,7 +43,7 @@ passwd -l "root
 # Update and install necessary tools
 task_title "Updating and Installing Tools" "🔧"
 apt-get update && apt-get upgrade -y
-apt-get install -y ufw chkrootkit fail2ban iptables libpam-pwquality lynis vim net-tools
+apt-get install -y ufw chkrootkit fail2ban iptables libpam-pwquality lynis vim net-tools clamav clamav-daemon clamav-freshclam clamdscan
 progress_bar 5 "Installing Packages"
 
 # Disable guest login for LightDM, GDM, and SDDM
@@ -730,9 +730,6 @@ progress_bar 5 "Changing User Passwords"
 
 #disables ipv4 forwarding && enables ipv4 syn packet coockies
 
-echo "net.ipv4.ip_forward=0" | sudo tee /etc/sysctl.conf
-echo "net.ipv4.tcp_syncookies=1" | sudo tee /etc/sysctl.conf
-sudo sysctl --system
 
 
 # MP3 File Search and Deletion
@@ -755,6 +752,9 @@ if [ "$delete_confirmation" = "yes" ]; then
 fi
 progress_bar 5 "Deleting .mp3 Files"
 
+
+chmod 640 /etc/passwd
 # Final success message
 echo -e "\033[1;32m🎉 All tasks completed successfully!\033[0m"
 echo "Execution completed at $(date)" >> "$LOG_FILE"
+
