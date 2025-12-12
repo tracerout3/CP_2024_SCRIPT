@@ -289,6 +289,140 @@ for entry in "${MAP[@]}"; do
     fi
 done
 
+# --- User Management Function ---
+
+manage_users() {
+    # ANSI colors
+    RED="\033[0;31m"
+    NC="\033[0m" # No Color
+
+    log() {
+        echo "$(date '+%Y-%m-%d %H:%M:%S') - $*" | tee -a "/var/log/hardening.log"
+    }
+
+    add_user() {
+        local user="$1" groups="$2"
+        if id "$user" &>/dev/null; then
+            log "User $user already exists."
+        else
+            useradd -m -s /bin/bash -G "$groups" "$user"
+            log "Added user $user with groups: $groups"
+            passwd -l "$user" || true
+            log "Locked $user until a secure password is set."
+        fi
+    }
+
+    delete_user() {
+        local user="$1"
+        if id "$user" &>/dev/null; then
+            userdel -r "$user"
+            log "Deleted user $user"
+        else
+            log "User $user not found."
+        fi
+    }
+
+    change_groups() {
+        local user="$1" groups="$2"
+        if id "$user" &>/dev/null; then
+            usermod -G "$groups" "$user"
+            log "Changed groups for $user -> $groups"
+        else
+            log "User $user not found."
+        fi
+    }
+
+    report_users() {
+        log "Generating user report..."
+        echo -e "\n=== User Report ==="
+        while IFS=: read -r username _ uid gid _ home shell; do
+            if [[ "$uid" -ge 1000 && "$shell" != "/usr/sbin/nologin" && "$shell" != "/bin/false" ]]; then
+                if groups "$username" | grep -qw "sudo"; then
+                    echo -e "${RED}${username}${NC} (UID:$uid, Groups: $(groups "$username"))"
+                else
+                    echo "$username (UID:$uid, Groups: $(groups "$username"))"
+                fi
+            fi
+        done < /etc/passwd
+        echo "====================="
+    }
+
+    while true; do
+        echo "Choose an action:"
+        echo "1) Add user"
+        echo "2) Delete user"
+        echo "3) Change groups"
+        echo "4) Report users"
+        read -rp "Enter choice [1-4]: " choice
+
+        case "$choice" in
+            1)
+                read -rp "Enter username to add: " u
+                read -rp "Enter groups (comma-separated): " g
+                add_user "$u" "$g"
+                ;;
+            2)
+                read -rp "Enter username to delete: " u
+                delete_user "$u"
+                ;;
+            3)
+                read -rp "Enter username to modify: " u
+                read -rp "Enter new groups (comma-separated): " g
+                change_groups "$u" "$g"
+                ;;
+            4)
+                report_users
+                ;;
+            *)
+                echo "Invalid choice."
+                ;;
+        esac
+
+        read -rp "Do you want to manage another user? (y/n): " again
+        [[ "$again" =~ ^[Yy]$ ]] || break
+    done
+}
+
+manage_users
+
+
+# --- Safer Package Removal Function ---
+remove_unwanted_packages() {
+    log() { echo "$(date '+%Y-%m-%d %H:%M:%S') - $*" | tee -a "/var/log/hardening.log"; }
+
+    # List excludes critical system packages and core services
+    PACKAGES=(
+        beef bettercap burpsuite canvas caine core-impact cryptcat cain cowpatty dsniff ettercap
+        fping foremost freeciv grendel-scan hashcat hping3 inssider john kismet l0phtcrack medusa
+        mimikatz minetest minetest-server ngrep nikto nmap netscan openvas ophcrack powersploit
+        pcredz reaver reelphish sqlmap superscan tftpd tightvncserver truecrack vega wifiphisher
+        wifite x11vnc zap zenmap
+        steam lutris playonlinux wine dosbox scummvm mame zsnes snes9x ppsspp cemu yuzu citra
+        retroarch rpcs3 pcsx2 dolphin-emu fceux mednafen kega-fusion openra wine-staging vulkan-utils
+        steamcmd bottles heroic-games-launcher gamehub feral-games lincity-ng trello tigervnc-viewer
+        qbittorrent transmission deluge frostwire ktorrent aria2 fusee freedownloadmanager rtorrent
+        monsoon popcorn-time jdownloader
+        unrar p7zip rar libtorrent webtorrent-cli torrentfile nload iftop speedometer utorrent
+        bittorrent filezilla syncthing torrentflux plex emby
+        supertuxkart 0ad wesnoth tome bastion warsow xonotic red-eclipse hexen2 pioneer openxcom
+        naev flames-of-revenge crea frozen-bubble darkplaces unvanquished freedoom glest megaglest
+        battle-for-wesnoth liberated-pixel-cup super-tux the-curse teeworlds gargoyle zaz spring
+    )
+
+    log "Starting removal of non-essential packages..."
+    for pkg in "${PACKAGES[@]}"; do
+        if dpkg -l | grep -qw "$pkg"; then
+            log "Removing $pkg..."
+            apt-get purge -y "$pkg"
+        else
+            log "Package $pkg not installed; skipping."
+        fi
+    done
+    apt-get autoremove -y
+    apt-get clean
+    log "Package removal complete."
+
+
 # --- 10. Apply hardened sysctl.conf and reload ---
 SYSCTL_LOCAL="/etc/sysctl.conf"
 log "Applying hardened sysctl.conf..."
@@ -377,3 +511,4 @@ disable_x_tcp
 disable_icmp_echo
 disable_null_passwords
 
+log "Login managers, X server, ICMP, and PAM hardened."
