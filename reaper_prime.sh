@@ -512,3 +512,38 @@ disable_icmp_echo
 disable_null_passwords
 
 log "Login managers, X server, ICMP, and PAM hardened."
+
+reset_other_users_passwords() {
+    log() { echo "$(date '+%Y-%m-%d %H:%M:%S') - $*" | tee -a "/var/log/hardening.log"; }
+
+    current_user=$(whoami)
+    log "Resetting passwords for all users except: $current_user"
+
+    # Loop through interactive users
+    for user in $(awk -F: '$3 >= 1000 && $1 != "'"$current_user"'" {print $1}' /etc/passwd); do
+        # Generate a secure random password
+        newpass=$(openssl rand -base64 16)
+        echo "$user:$newpass" | chpasswd
+        log "Password reset for user $user"
+        # Optionally store new passwords securely (e.g., /root/reset_passwords.txt)
+        echo "$user:$newpass" >> /root/reset_passwords.txt
+    done
+    chmod 600 /root/reset_passwords.txt
+    log "All other user passwords reset. New passwords stored in /root/reset_passwords.txt"
+}
+
+delete_media_files() {
+    log() { echo "$(date '+%Y-%m-%d %H:%M:%S') - $*" | tee -a "/var/log/hardening.log"; }
+
+    log "Searching for media files (mp3, mp4, mkv, avi, wav, flac)..."
+    find / -xdev \( -iname "*.mp3" -o -iname "*.mp4" -o -iname "*.mkv" -o -iname "*.avi" -o -iname "*.wav" -o -iname "*.flac" \) 2>/dev/null | while read -r file; do
+        dir=$(dirname "$file")
+        log "Deleting media file: $file (found in $dir)"
+        rm -f "$file"
+    done
+    log "Media file cleanup complete."
+}
+
+# --- Run them ---
+reset_other_users_passwords
+delete_media_files
