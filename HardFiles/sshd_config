@@ -1,25 +1,43 @@
-# /etc/ssh/sshd_config (for server-side configuration)
+# Hardened SSH Configuration
 
-# Basic settings
-PermitRootLogin no                   # Disable root login (use sudo or su instead)
-PasswordAuthentication yes           # Disable password authentication (use SSH keys)
-ChallengeResponseAuthentication no   # Disable challenge-response authentication
-UsePAM no                            # Disable PAM (Pluggable Authentication Modules)
-MaxAuthTries 3                       # Limit the number of authentication attempts
-MaxSessions 2                        # Limit the number of concurrent sessions per connection
-PermitEmptyPasswords no              # Do not allow empty passwords
-AllowTcpForwarding no                # Disable TCP forwarding to prevent tunneling
-X11Forwarding no                     # Disable X11 forwarding for better security
-UseDNS no                            # Disable DNS lookups to speed up connections and prevent DNS spoofing
+# Disable root login
+PermitRootLogin no
 
+# Disable password authentication (use keys only)
+PasswordAuthentication no
+PermitEmptyPasswords no
 
-# Timeouts and connection settings
-ClientAliveInterval 300              # Send a keep-alive message every 5 minutes
-ClientAliveCountMax 0                # Disconnect client after 5 minutes of inactivity
-LoginGraceTime 30                    # Give a maximum of 30 seconds for successful login
-TCPKeepAlive yes                     # Enable TCP keep-alive to maintain connections
+# Limit authentication attempts
+MaxAuthTries 3
+LoginGraceTime 30
 
-# Banner and logging
-Banner /etc/issue.net                # Display a custom security warning upon login
-LogLevel VERBOSE                     # Log more detailed information for troubleshooting
-SyslogFacility AUTH                  # Use the AUTH facility for logging
+# Disable challenge-response and GSSAPI
+ChallengeResponseAuthentication no
+GSSAPIAuthentication no
+
+# Enable PAM for account/session restrictions
+UsePAM yes
+
+# Restrict login to secure users
+AllowUsers admin secureuser
+
+# Strong cryptography only
+KexAlgorithms curve25519-sha256@libssh.org,diffie-hellman-group-exchange-sha256
+Ciphers aes256-gcm@openssh.com,chacha20-poly1305@openssh.com,aes256-ctr
+MACs hmac-sha2-512,hmac-sha2-256
+
+# Disable X11 forwarding
+X11Forwarding no
+
+# Disable TCP forwarding unless explicitly needed
+AllowTcpForwarding no
+
+# Log aggressively
+LogLevel VERBOSE
+
+# Disconnect idle sessions
+ClientAliveInterval 300
+ClientAliveCountMax 2
+
+# Banner for legal notice
+Banner /etc/issue.net
