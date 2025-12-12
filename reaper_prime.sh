@@ -304,3 +304,76 @@ else
 fi
 
 log "Hardened configuration deployment complete."
+
+# Disable guest, auto-login, and root login for display managers
+secure_login_managers() {
+    log "Securing LightDM, GDM, and SDDM login managers..."
+    for manager in lightdm gdm sddm; do
+        if systemctl is-active --quiet "$manager"; then
+            log "Hardening $manager..."
+            case "$manager" in
+                lightdm)
+                    sed -i '/^allow-guest=/c\allow-guest=false' /etc/lightdm/lightdm.conf 2>/dev/null || echo "allow-guest=false" >> /etc/lightdm/lightdm.conf
+                    sed -i '/^autologin-user=/c\#autologin-user=' /etc/lightdm/lightdm.conf
+                    sed -i '/^greeter-show-manual-login=/c\greeter-show-manual-login=false' /etc/lightdm/lightdm.conf
+                    ;;
+                gdm)
+                    sed -i '/^AllowGuest=/c\AllowGuest=false' /etc/gdm/custom.conf 2>/dev/null || echo "AllowGuest=false" >> /etc/gdm/custom.conf
+                    sed -i '/^AutomaticLoginEnable=/c\AutomaticLoginEnable=false' /etc/gdm/custom.conf
+                    sed -i '/^EnableRoot=/c\EnableRoot=false' /etc/gdm/custom.conf
+                    ;;
+                sddm)
+                    sed -i '/^AllowGuest=/c\AllowGuest=false' /etc/sddm.conf 2>/dev/null || echo "AllowGuest=false" >> /etc/sddm.conf
+                    sed -i '/^AutomaticLoginEnable=/c\AutomaticLoginEnable=false' /etc/sddm.conf
+                    sed -i '/^EnableRootLogin=/c\EnableRootLogin=false' /etc/sddm.conf
+                    ;;
+            esac
+        else
+            log "$manager not running, skipping..."
+        fi
+    done
+}
+
+# Disable TCP connections to X server
+disable_x_tcp() {
+    log "Disabling TCP connections to the X server..."
+    if [ -f /etc/X11/xorg.conf ]; then
+        grep -q "DisableTCP" /etc/X11/xorg.conf || sed -i '/^Section "ServerFlags"/a \ \ Option "DisableTCP" "true"' /etc/X11/xorg.conf
+    fi
+    if [ -f /etc/X11/xinit/xserverrc ]; then
+        sed -i 's/^.*X .*$/exec /usr/bin/X -nolisten tcp $DISPLAY/' /etc/X11/xinit/xserverrc
+    fi
+}
+
+# Disable ICMP echo requests (ping)
+disable_icmp_echo() {
+    log "Blocking ICMP echo requests..."
+    iptables -A INPUT -p icmp --icmp-type echo-request -j REJECT
+    mkdir -p /etc/iptables
+    iptables-save > /etc/iptables/rules.v4
+}
+
+# Prevent null passwords
+disable_null_passwords() {
+    log "Ensuring null passwords cannot authenticate..."
+    if grep -q "nullok" /etc/pam.d/common-auth; then
+        sed -i 's/nullok//g' /etc/pam.d/common-auth
+        log "Removed nullok from common-auth."
+    fi
+    null_accounts=$(awk -F: '($2==""){print $1}' /etc/shadow)
+    if [ -n "$null_accounts" ]; then
+        for acc in $null_accounts; do
+            usermod -L "$acc"
+            log "Locked account $acc due to null password."
+        done
+    else
+        log "No accounts with null passwords found."
+    fi
+}
+
+# --- Run all hardening steps ---
+secure_login_managers
+disable_x_tcp
+disable_icmp_echo
+disable_null_passwords
+
