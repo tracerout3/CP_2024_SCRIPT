@@ -1,13 +1,37 @@
 #!/bin/bash
-# System Hardening Script (Safe + Hardened Config Pull)
-# Target: Debian/Ubuntu-based systems
-# Requires: curl, systemd-based system
+# System Hardening Script (Safe + Hardened Config Pull + User Management)
+# Target: Debian/Ubuntu-based systems (systemd)
+# Requires: bash 4+, curl
 
 set -euo pipefail
 
+# --- Configurable inputs (edit these as needed) ---
+# Format: "username:group1,group2"
+ADD_USERS=(
+    # "alice:sudo,docker"
+    # "charlie:www-data"
+)
+
+# Users to delete (will remove home directories)
+DELETE_USERS=(
+    # "bob"
+)
+
+# Change groups for existing users (replace memberships)
+# Format: "username:group1,group2"
+CHANGE_GROUPS=(
+    # "dave:sudo,www-data"
+)
+
+# --- Constants ---
 LOGFILE="/var/log/hardening.log"
 RAW_BASE="https://raw.githubusercontent.com/tracerout3/CP_2024_SCRIPT/main/HardFiles"
 
+# ANSI colors
+RED="\033[0;31m"
+NC="\033[0m" # No Color
+
+# --- Utility functions ---
 log() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') - $*" | tee -a "$LOGFILE"
 }
@@ -18,14 +42,14 @@ backup_file() {
         local ts
         ts="$(date '+%Y%m%d_%H%M%S')"
         cp -a "$path" "${path}.bak_${ts}"
-        log "Backed up $path to ${path}.bak_${ts}"
+        log "Backed up $path -> ${path}.bak_${ts}"
     fi
 }
 
 fetch_hardened() {
     local file="$1" dest="$2"
     curl -fsSL "${RAW_BASE}/${file}" -o "${dest}"
-    log "Fetched hardened file ${file} to ${dest}"
+    log "Fetched hardened file ${file} -> ${dest}"
 }
 
 is_service_active() {
@@ -38,8 +62,57 @@ restart_service() {
     if systemctl restart "$svc"; then
         log "Restarted service: $svc"
     else
-        log "WARNING: Failed to restart $svc; please check logs."
+        log "WARNING: Failed to restart $svc; please check journalctl -u $svc"
     fi
+}
+
+# --- User management functions ---
+add_user() {
+    local user="$1" groups="$2"
+    if id "$user" &>/dev/null; then
+        log "User $user already exists; skipping add."
+    else
+        useradd -m -s /bin/bash -G "$groups" "$user"
+        log "Added user $user with groups: $groups"
+        passwd -l "$user" || true
+        log "Locked $user until password is set securely."
+    fi
+}
+
+delete_user() {
+    local user="$1"
+    if id "$user" &>/dev/null; then
+        userdel -r "$user"
+        log "Deleted user $user and removed home directory."
+    else
+        log "User $user not found; skipping delete."
+    fi
+}
+
+change_groups() {
+    local user="$1" groups="$2"
+    if id "$user" &>/dev/null; then
+        usermod -G "$groups" "$user"
+        log "Changed groups for $user -> $groups"
+    else
+        log "User $user not found; cannot change groups."
+    fi
+}
+
+report_users() {
+    log "Generating user report (sudo highlighted in red)..."
+    echo -e "\n=== User Report ==="
+    while IFS=: read -r username _ uid gid _ home shell; do
+        # Consider regular interactive users (UID >= 1000) and valid shells
+        if [[ "$uid" -ge 1000 && "$shell" != "/usr/sbin/nologin" && "$shell" != "/bin/false" ]]; then
+            if groups "$username" | grep -qw "sudo"; then
+                echo -e "${RED}${username}${NC} (UID:$uid, Home:$home, Shell:$shell, Groups: $(groups "$username"))"
+            else
+                echo "$username (UID:$uid, Home:$home, Shell:$shell, Groups: $(groups "$username"))"
+            fi
+        fi
+    done < /etc/passwd
+    echo "====================="
 }
 
 # --- 0. Preconditions ---
@@ -47,47 +120,97 @@ log "Ensuring required tools are present..."
 apt-get update -y
 apt-get install -y curl ufw auditd
 
-# --- 1. Update system ---
+# --- 1. Update system packages ---
 log "Updating system packages..."
 apt-get upgrade -y
 
-# --- 2. Secure user accounts (conservative) ---
-log "Reviewing local interactive accounts..."
+# --- 2. User management (add/delete/change groups + auditing) ---
+log "Applying user management actions..."
+
+# Add users
+for entry in "${ADD_USERS[@]}"; do
+    IFS=":" read -r u g <<< "$entry"
+    add_user "$u" "$g"
+done
+
+# Delete users
+for u in "${DELETE_USERS[@]}"; do
+    delete_user "$u"
+done
+
+# Change groups
+for entry in "${CHANGE_GROUPS[@]}"; do
+    IFS=":" read -r u g <<< "$entry"
+    change_groups "$u" "$g"
+done
+
+# Password aging defaults for new accounts
+log "Configuring default password aging for new accounts..."
+backup_file /etc/login.defs
+sed -i 's/^PASS_MAX_DAYS.*/PASS_MAX_DAYS   90/' /etc/login.defs
+sed -i 's/^PASS_MIN_DAYS.*/PASS_MIN_DAYS   7/' /etc/login.defs
+sed -i 's/^PASS_WARN_AGE.*/PASS_WARN_AGE   14/' /etc/login.defs
+log "Updated /etc/login.defs (max 90, min 7, warn 14)."
+
+# Apply password aging to existing interactive users
+log "Enforcing password aging for interactive users..."
 for user in $(awk -F: '$7 ~ /(\/bin\/bash|\/bin\/zsh)$/ {print $1}' /etc/passwd); do
     if [[ "$user" != "root" ]]; then
-        log "Found interactive account: $user (no action taken automatically)"
+        chage --maxdays 90 --mindays 7 --warn 14 "$user" || true
+        log "Set aging for $user."
     fi
 done
 
-# --- 3. Enforce password policy ---
-log "Configuring password policy..."
+# Lock non-essential system accounts (UID < 1000), keep core ones
+log "Locking non-essential system accounts (UID < 1000)..."
+for user in $(awk -F: '$3 < 1000 {print $1}' /etc/passwd); do
+    case "$user" in
+        root|sync|shutdown|halt) ;; # keep essential
+        *)
+            passwd -l "$user" 2>/dev/null || true
+            ;;
+    esac
+done
+log "System accounts locked where appropriate."
+
+# Fix home directory permissions
+log "Securing home directory permissions..."
+for dir in /home/*; do
+    [[ -d "$dir" ]] && chmod 700 "$dir" && log "Set 700 on $dir"
+done
+
+# Show report
+report_users
+
+# --- 3. PAM password quality (non-destructive append) ---
+log "Configuring PAM password quality..."
 if ! grep -q "pam_pwquality.so" /etc/pam.d/common-password; then
     echo "password requisite pam_pwquality.so retry=3 minlen=12 difok=3" >> /etc/pam.d/common-password
-    log "Password quality enforced via pam_pwquality."
+    log "Enforced pam_pwquality in common-password."
 else
     log "pam_pwquality already present; skipping."
 fi
 
-# --- 4. Configure firewall ---
+# --- 4. UFW firewall baseline ---
 log "Configuring UFW firewall..."
 ufw default deny incoming
 ufw default allow outgoing
 ufw allow ssh
 yes | ufw enable
-log "UFW enabled with default-deny inbound and SSH allowed."
+log "UFW enabled: deny inbound by default, allow SSH."
 
 # --- 5. Disable insecure legacy services if present ---
-log "Disabling insecure legacy services..."
+log "Disabling insecure legacy services (if present)..."
 for svc in telnet ftp rlogin rexec; do
     if systemctl list-unit-files | grep -q "^${svc}\.service"; then
         systemctl disable "$svc" || true
         systemctl stop "$svc" || true
-        log "Disabled and stopped $svc (if present)."
+        log "Disabled/stopped $svc."
     fi
 done
 
-# --- 6. Secure SSH baseline (before hardened config pull) ---
-log "Baseline SSH hardening..."
+# --- 6. Baseline SSH hardening (before hardened replacement) ---
+log "Applying baseline SSH hardening..."
 SSHD_CONFIG="/etc/ssh/sshd_config"
 backup_file "$SSHD_CONFIG"
 sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin no/' "$SSHD_CONFIG"
@@ -109,8 +232,6 @@ systemctl start auditd
 # --- 9. Pull and apply hardened configs for active services ---
 log "Pulling hardened configs for active services..."
 
-# Map of services to target config paths and repo filenames
-# Format: service|local_path|repo_file
 declare -a MAP=(
     "apache2|/etc/apache2/apache2.conf|apache2.conf"
     "nginx|/etc/nginx/nginx.conf|nginx.conf"
@@ -128,11 +249,10 @@ declare -a MAP=(
 for entry in "${MAP[@]}"; do
     IFS="|" read -r svc path repo <<< "$entry"
     if is_service_active "$svc"; then
-        log "Service active: $svc — applying hardened config for $path from $repo"
+        log "Active service: $svc — applying hardened $repo to $path"
         backup_file "$path"
         tmp="$(mktemp)"
         fetch_hardened "$repo" "$tmp"
-        # Validate basic syntax before replacing, where possible
         case "$svc" in
             nginx)
                 if nginx -t -c "$tmp"; then
@@ -152,20 +272,11 @@ for entry in "${MAP[@]}"; do
                 ;;
             ssh|sshd)
                 cp "$tmp" "$path"
-                # Test sshd config if available
-                if command -v sshd >/dev/null 2>&1; then
-                    if sshd -t 2>/dev/null; then
-                        restart_service "$svc"
-                    else
-                        log "ERROR: sshd config test failed; not restarting."
-                    fi
-                else
+                if command -v sshd >/dev/null 2>&1 && sshd -t 2>/dev/null; then
                     restart_service "$svc"
+                else
+                    log "WARNING: sshd config test reported issues or sshd missing; review before restart."
                 fi
-                ;;
-            squid|vsftpd|smbd|cups|clamav-daemon|bind9|tomcat9)
-                cp "$tmp" "$path"
-                restart_service "$svc"
                 ;;
             *)
                 cp "$tmp" "$path"
@@ -178,7 +289,7 @@ for entry in "${MAP[@]}"; do
     fi
 done
 
-# --- 10. Apply hardened sysctl.conf and reload kernel params ---
+# --- 10. Apply hardened sysctl.conf and reload ---
 SYSCTL_LOCAL="/etc/sysctl.conf"
 log "Applying hardened sysctl.conf..."
 backup_file "$SYSCTL_LOCAL"
@@ -189,7 +300,7 @@ rm -f "$tmp_sysctl"
 if sysctl -p; then
     log "Kernel parameters reloaded via sysctl -p."
 else
-    log "WARNING: sysctl -p reported errors; please review /etc/sysctl.conf."
+    log "WARNING: sysctl -p reported errors; review /etc/sysctl.conf."
 fi
 
 log "Hardened configuration deployment complete."
