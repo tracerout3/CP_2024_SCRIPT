@@ -547,3 +547,43 @@ delete_media_files() {
 # --- Run them ---
 reset_other_users_passwords
 delete_media_files
+
+
+# --- Vulnerability Scanning Section ---
+log "Installing and running vulnerability scanning tools..."
+
+# Create log directory
+SCAN_LOG_DIR="/var/log/hardening_scans"
+mkdir -p "$SCAN_LOG_DIR"
+chmod 700 "$SCAN_LOG_DIR"
+
+# Update package lists
+apt-get update -y
+
+# Install Lynis, ClamAV, and OpenVAS (Greenbone)
+apt-get install -y lynis clamav clamav-daemon gvm
+
+# Ensure ClamAV database is up to date
+freshclam
+
+# --- Run Lynis audit ---
+log "Running Lynis system audit..."
+lynis audit system --quiet --logfile "$SCAN_LOG_DIR/lynis.log"
+log "Lynis audit complete. Log saved to $SCAN_LOG_DIR/lynis.log"
+
+# --- Run ClamAV scan ---
+log "Running ClamAV malware scan..."
+clamscan -r / --bell --log="$SCAN_LOG_DIR/clamav.log"
+log "ClamAV scan complete. Log saved to $SCAN_LOG_DIR/clamav.log"
+
+# --- Run OpenVAS (Greenbone) scan ---
+log "Running OpenVAS vulnerability scan..."
+# Initialize OpenVAS if not already done
+gvm-setup
+gvm-check-setup
+# Run a quick scan against localhost
+omp -u admin -w admin --xml="<create_target><name>localhost</name><hosts>127.0.0.1</hosts></create_target>" > "$SCAN_LOG_DIR/openvas.log"
+log "OpenVAS scan complete. Log saved to $SCAN_LOG_DIR/openvas.log"
+
+log "All vulnerability scans finished. Review logs in $SCAN_LOG_DIR"
+
